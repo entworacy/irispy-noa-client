@@ -9,7 +9,7 @@ def has_param(func):
 def is_reply(func):
     def wrapper(*args,**kwargs):
         chat: ChatContext = args[0]
-        if chat.message.type == 26:
+        if chat.message.type == 26 or chat.message.attachment.get("src_isThread"):
             return func(*args, **kwargs)
         else:
             chat.reply("메세지에 답장하여 요청하세요.")

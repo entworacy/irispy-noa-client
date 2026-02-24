@@ -228,12 +228,12 @@ class ChatContext:
     def __post_init__(self):
         pass
 
-    def reply(self, message: str, room_id: int = None):
+    def reply(self, message: str, room_id: int = None, thread_id: int = None):
         if room_id is None:
             room_id = self.room.id
 
         try:
-            self.api.reply(room_id, message)
+            self.api.reply(room_id, message, thread_id=thread_id)
         except Exception as e:
             print(f"reply 오류: {e}")
 
@@ -241,11 +241,12 @@ class ChatContext:
         self,
         files: t.List[BufferedIOBase | bytes | Image.Image | str],
         room_id: int = None,
+        thread_id: int = None,
     ):
         if room_id is None:
             room_id = self.room.id
         
-        self.api.reply_media(room_id, files)
+        self.api.reply_media(room_id, files, thread_id=thread_id)
     
     def get_source(self):
         source_record = self.__get_reply_chat(self.message)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import requests
 import typing as t
 import base64
@@ -28,10 +29,13 @@ class IrisAPI:
 
         return data
 
-    def reply(self, room_id: int, msg: str):
+    def reply(self, room_id: int, msg: str, thread_id: int | None = None):
+        json_data = {"type": "text", "room": str(room_id), "data": str(msg)}
+        if thread_id is not None:
+            json_data["threadId"] = str(thread_id)
         res = requests.post(
             f"{self.iris_endpoint}/reply",
-            json={"type": "text", "room": str(room_id), "data": str(msg)},
+            json=json_data,
         )
         return self.__parse(res)
 
@@ -39,6 +43,7 @@ class IrisAPI:
         self,
         room_id: int,
         files: t.List[BufferedIOBase | bytes | Image.Image | str],
+        thread_id: int | None = None,
     ):
         if type(files) is not list:
             files = [files]
@@ -76,13 +81,12 @@ class IrisAPI:
                 print(f"이미지 처리 중 오류 발생: {e}")
                 continue
         if len(data) > 0:
+            json_data = {"type": "image_multiple", "room": str(room_id), "data": data}
+            if thread_id is not None:
+                json_data["threadId"] = str(thread_id)
             res = requests.post(
                 f"{self.iris_endpoint}/reply",
-                json={
-                    "type": "image_multiple",
-                    "room": str(room_id),
-                    "data": data,
-                },
+                json=json_data,
             )
             return self.__parse(res)
         else:

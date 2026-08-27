@@ -79,7 +79,12 @@ class NoaApiTests(unittest.TestCase):
         self.assertEqual(data["message"], "@사용자😀 님, @사용자😀! {ok}")
         self.assertEqual(
             data["attachment"],
-            {"mentions": [{"user_id": 99, "at": [1, 2], "len": 5}]},
+            {
+                "mentions": [
+                    {"user_id": 99, "at": [1], "len": 5},
+                    {"user_id": 99, "at": [2], "len": 5},
+                ]
+            },
         )
 
     @patch("iris.bot._internal.iris.requests.post")
@@ -104,10 +109,28 @@ class NoaApiTests(unittest.TestCase):
             data["attachment"],
             {
                 "mentions": [
-                    {"user_id": 99, "at": [1, 3], "len": 5},
+                    {"user_id": 99, "at": [1], "len": 5},
                     {"user_id": 100, "at": [2], "len": 3},
+                    {"user_id": 99, "at": [3], "len": 5},
                 ]
             },
+        )
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_custom_text_counts_literal_at_signs(self, post):
+        post.return_value = response(payload={"success": True})
+
+        self.api.custom_text(
+            123,
+            "문의@test {sender}",
+            mentions={"sender": Mention(99, "사용자")},
+        )
+
+        data = post.call_args.kwargs["json"]["data"]
+        self.assertEqual(data["message"], "문의@test @사용자")
+        self.assertEqual(
+            data["attachment"],
+            {"mentions": [{"user_id": 99, "at": [2], "len": 3}]},
         )
 
     def test_custom_text_rejects_missing_or_unused_mentions(self):

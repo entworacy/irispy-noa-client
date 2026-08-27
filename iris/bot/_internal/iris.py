@@ -327,12 +327,13 @@ def _render_mentions(
         raise TypeError("template must be a string")
 
     parts = []
-    mention_index = 0
+    at_count = 0
     used = set()
-    rendered_mentions = {}
+    rendered_mentions = []
     parsed = string.Formatter().parse(template)
     for literal, field_name, format_spec, conversion in parsed:
         parts.append(literal)
+        at_count += literal.count("@")
         if field_name is None:
             continue
         if not field_name or format_spec or conversion:
@@ -342,24 +343,23 @@ def _render_mentions(
 
         target = _coerce_mention(mentions[field_name])
         used.add(field_name)
-        mention_index += 1
-        key = (target.user_id, target.nickname)
-        rendered_mentions.setdefault(
-            key,
+        at_count += 1
+        rendered_mentions.append(
             {
                 "user_id": target.user_id,
-                "at": [],
+                "at": [at_count],
                 "len": _utf16_length(target.nickname),
-            },
-        )["at"].append(mention_index)
+            }
+        )
 
         rendered = f"@{target.nickname}"
         parts.append(rendered)
+        at_count += target.nickname.count("@")
 
     unused = set(mentions) - used
     if unused:
         raise ValueError(f"unused mention targets: {', '.join(sorted(unused))}")
-    return "".join(parts), list(rendered_mentions.values())
+    return "".join(parts), rendered_mentions
 
 
 def _coerce_mention(value: Mention | _MentionUser) -> Mention:

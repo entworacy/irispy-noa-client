@@ -327,13 +327,12 @@ def _render_mentions(
         raise TypeError("template must be a string")
 
     parts = []
-    utf16_offset = 0
+    mention_index = 0
     used = set()
     rendered_mentions = {}
     parsed = string.Formatter().parse(template)
     for literal, field_name, format_spec, conversion in parsed:
         parts.append(literal)
-        utf16_offset += _utf16_length(literal)
         if field_name is None:
             continue
         if not field_name or format_spec or conversion:
@@ -343,6 +342,7 @@ def _render_mentions(
 
         target = _coerce_mention(mentions[field_name])
         used.add(field_name)
+        mention_index += 1
         key = (target.user_id, target.nickname)
         rendered_mentions.setdefault(
             key,
@@ -351,11 +351,10 @@ def _render_mentions(
                 "at": [],
                 "len": _utf16_length(target.nickname),
             },
-        )["at"].append(utf16_offset + 1)
+        )["at"].append(mention_index)
 
         rendered = f"@{target.nickname}"
         parts.append(rendered)
-        utf16_offset += _utf16_length(rendered)
 
     unused = set(mentions) - used
     if unused:

@@ -72,7 +72,7 @@ chat.custom_reply(
 )
 ```
 
-멘션의 `attachment.mentions`, UTF-16 `at`, `len`을 직접 계산했다면
+멘션의 `attachment.mentions`, 멘션 순번 `at`, UTF-16 길이 `len`을 직접 계산했다면
 `custom_text` 템플릿으로 교체합니다.
 
 ```python
@@ -154,7 +154,7 @@ chat.custom_text(
 
 - `{sender}`를 `@<닉네임>`으로 치환
 - KakaoTalk `attachment.mentions` 생성
-- 이모지를 포함한 UTF-16 `at`, `len` 자동 계산
+- 등장 순서에 따른 `at`와 이모지를 포함한 UTF-16 `len` 자동 계산
 - 같은 사용자가 여러 번 등장하면 `at` 목록으로 통합
 
 여러 사용자도 각각 이름을 붙여 멘션할 수 있습니다.
@@ -193,7 +193,7 @@ chat.custom_text(
 ### `custom_reply` 저수준 파라미터
 
 `custom_reply`는 KakaoTalk `chat_sending_logs`에 들어가는 필드를 기준으로 받습니다.
-멘션의 위치를 직접 제어해야 하는 경우에만 이 저수준 메서드를 사용하면 됩니다.
+멘션의 순번을 직접 제어해야 하는 경우에만 이 저수준 메서드를 사용하면 됩니다.
 각 인자와 실제 Noa `custom` 데이터의 대응은 다음과 같습니다.
 
 | Python 인자 | Noa `data` 필드 | 필수 | 설명 |
@@ -211,7 +211,7 @@ chat.custom_text(
 | `client_message_id` | `client_message_id` | 아니오 | 양수이며 기존 값과 중복되지 않아야 합니다. 보통 생략하여 Noa가 생성하게 합니다. |
 
 예를 들어 발신자 `@사용자😀`를 실제 KakaoTalk 멘션으로 표시하려면
-`attachment.mentions` 안에 사용자 ID와 UTF-16 기준 범위를 넣습니다.
+`attachment.mentions` 안에 사용자 ID, 멘션 순번, UTF-16 기준 닉네임 길이를 넣습니다.
 
 ```python
 def utf16_length(text: str) -> int:
@@ -228,7 +228,7 @@ chat.custom_reply(
         "mentions": [
             {
                 "user_id": int(chat.sender.id),
-                # @ 다음의 닉네임이 시작하는 UTF-16 인덱스
+                # 메시지에서 첫 번째로 등장하는 멘션
                 "at": [1],
                 # @를 제외한 닉네임의 UTF-16 길이
                 "len": utf16_length(nickname),

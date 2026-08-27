@@ -237,6 +237,38 @@ class ChatContext:
         except Exception as e:
             print(f"reply 오류: {e}")
 
+    def reply_markdown(self, markdown: str, room_id: int | None = None):
+        """Send a Markdown message through Noa."""
+        if room_id is None:
+            room_id = self.room.id
+        return self.api.reply_markdown(room_id, markdown)
+
+    def custom_reply(
+        self,
+        message_type: int,
+        message: str = "",
+        *,
+        room_id: int | None = None,
+        **kwargs,
+    ):
+        """Send a custom KakaoTalk message through Noa."""
+        if room_id is None:
+            room_id = self.room.id
+        return self.api.custom_reply(room_id, message_type, message, **kwargs)
+
+    def kick_member(
+        self,
+        *,
+        user_id: int | str | None = None,
+        nickname: str | None = None,
+    ):
+        """Kick a member from this open-chat room through Noa."""
+        return self.api.kick_member(
+            self.room.id,
+            user_id=user_id,
+            nickname=nickname,
+        )
+
     def reply_media(
         self,
         files: t.List[BufferedIOBase | bytes | Image.Image | str],
@@ -384,4 +416,3 @@ class ErrorContext:
     func: t.Callable
     exception: Exception
     args: list[t.Any]
-

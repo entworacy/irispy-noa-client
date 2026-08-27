@@ -1,4 +1,80 @@
-# irispy-client
+# irispy-noa-client
+
+[`irispy-client`](https://github.com/dolidolih/irispy-client)를 기반으로 하며,
+[Noa](https://github.com/entworacy/noa)의 Iris 확장 엔드포인트를 바로 사용할 수 있도록
+기능을 추가한 Python 클라이언트입니다. 기존 `iris` import와 일반 Iris API는 그대로
+호환됩니다.
+
+## 설치
+
+```bash
+pip install git+https://github.com/entworacy/irispy-noa-client.git
+```
+
+Python 3.10 이상이 필요합니다.
+
+## Noa 확장 API
+
+`Bot.api` 또는 직접 생성한 `IrisAPI`에서 다음 메서드를 사용할 수 있습니다.
+
+- `kick_member(room_id, user_id=..., nickname=...)`
+- `reply_markdown(room_id, markdown)`
+- `custom_reply(room_id, message_type, message, ...)`
+- `noa_health()`
+- `get_open_chat_profiles()`
+- `share_open_profile(link_id, mode="auto")`
+- `share_member_open_profile(room_id, user_id, mode="auto")`
+- `join_open_chat(url, profile_id=None)`
+- `leave_room(room_id)`
+
+큰 KakaoTalk ID가 JSON 숫자 정밀도로 손상되지 않도록 방, 사용자, 프로필 ID는
+요청 본문에서 문자열로 전송됩니다. `mode`는 `auto`, `hook`, `accessibility` 중 하나입니다.
+
+```python
+from iris import IrisAPI
+
+api = IrisAPI("http://127.0.0.1:3000")
+
+# userId 기준 강퇴
+api.kick_member("18422091737011039", user_id="7626329973288865709")
+
+# Markdown 전송
+api.reply_markdown("18422091737011039", "**안녕하세요**")
+
+# KakaoTalk custom message 삽입 및 재전송
+api.custom_reply(
+    "18422091737011039",
+    message_type=1,
+    message="메시지",
+    attachment={},
+)
+
+# 멘션에서 구한 userId의 오픈프로필 링크 공유
+result = api.share_member_open_profile(
+    "18422091737011039",
+    "7626329973288865709",
+    mode="hook",
+)
+print(result["url"])
+```
+
+`ChatContext`에서도 현재 채팅방을 자동으로 사용하는 편의 메서드를 제공합니다.
+
+```python
+@bot.on_event("message")
+def on_message(chat):
+    if chat.message.command == "!markdown":
+        chat.reply_markdown("**Noa Markdown**")
+    elif chat.message.command == "!kick":
+        chat.kick_member(user_id="7626329973288865709")
+```
+
+Noa prefix를 변경해 설치했다면 클라이언트에도 동일하게 지정합니다.
+
+```python
+api = IrisAPI("http://127.0.0.1:3000", noa_prefix="/custom-noa")
+bot = Bot("127.0.0.1:3000", noa_prefix="/custom-noa")
+```
 
 ## `iris.Bot`
 
@@ -7,11 +83,19 @@ Iris 봇을 생성하고 관리하기 위한 메인 클래스입니다.
 **초기화:**
 
 ```python
-Bot(iris_url: str, *, max_workers: int = None)
+Bot(
+    iris_url: str,
+    *,
+    max_workers: int = None,
+    noa_prefix: str = "/noa",
+    timeout: float = 30.0,
+)
 ```
 
 - `iris_url` (str): Iris 서버의 URL (예: "127.0.0.1:3000").
 - `max_workers` (int, optional): 이벤트를 처리하는 데 사용할 최대 스레드 수.
+- `noa_prefix` (str, optional): Iris에 연결된 Noa 확장 경로. 기본값은 `"/noa"`.
+- `timeout` (float, optional): Iris/Noa HTTP 요청 타임아웃(초). 기본값은 `30.0`.
 
 **메서드:**
 

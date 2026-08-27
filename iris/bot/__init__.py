@@ -1,15 +1,23 @@
 import json
 import time
-from dataclasses import dataclass
 import typing as t
 
 from websockets.sync.client import connect
+
 from iris.bot._internal.emitter import EventEmitter
 from iris.bot._internal.iris import IrisAPI, IrisRequest
 from iris.bot.models import ChatContext, Message, Room, User
 
+
 class Bot:
-    def __init__(self, iris_url: str, *, max_workers=None):
+    def __init__(
+        self,
+        iris_url: str,
+        *,
+        max_workers=None,
+        noa_prefix: str = "/noa",
+        timeout: float = 30.0,
+    ):
         self.emitter = EventEmitter(max_workers=max_workers)
 
         self.iris_url = iris_url.replace(
@@ -25,15 +33,18 @@ class Bot:
                 "wss://",
                 "",
             )
-        if self.iris_url.endswith("/"):
-            self.iris_url = self.iris_url[:-1]
+        self.iris_url = self.iris_url.removesuffix("/")
 
         url_split = self.iris_url.split(":")
         if len(url_split) != 2 or len(url_split[0].split(".")) != 4:
             raise ValueError("Iris endpoint 주소는 IP:PORT 형식이어야 합니다. ex) 172.30.10.66:3000")
 
         self.iris_ws_endpoint = f"ws://{self.iris_url}/ws"
-        self.api = IrisAPI(f"http://{self.iris_url}")
+        self.api = IrisAPI(
+            f"http://{self.iris_url}",
+            noa_prefix=noa_prefix,
+            timeout=timeout,
+        )
 
     def __process_chat(self, chat: ChatContext):
         self.emitter.emit("chat", [chat])
@@ -118,4 +129,3 @@ class Bot:
             return wrapper
 
         return decorator
-

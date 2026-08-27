@@ -1,9 +1,10 @@
 [project]
-name = "irispy-client"
-version = "0.2.2"
-description = "An Iris bot client in Python"
+name = "irispy-noa-client"
+version = "0.3.0"
+description = "An Iris bot client with first-class Noa extension support"
 authors = [{ name = "dolidolih", email = "dolidolih@proton.me" }]
-requires-python = ">=3.9"
+maintainers = [{ name = "entworacy" }]
+requires-python = ">=3.10"
 readme = "README.md"
 dependencies = [
     "requests",
@@ -13,8 +14,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/dolidolih/irispy-client"
-Repository = "https://github.com/dolidolih/irispy-client"
+Homepage = "https://github.com/entworacy/irispy-noa-client"
+Repository = "https://github.com/entworacy/irispy-noa-client"
 
 [project.scripts]
 iris = "iris.cli:main"

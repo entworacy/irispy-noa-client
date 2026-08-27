@@ -6,6 +6,6 @@ irispy.py
 todo
 *.pyc
 .vscode/
-tests/
 *egg-info/
+build/
 dist/

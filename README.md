@@ -19,6 +19,7 @@ Python 3.10 이상이 필요합니다.
 
 - `kick_member(room_id, user_id=..., nickname=...)`
 - `reply_markdown(room_id, markdown)`
+- `custom_text(room_id, template, mentions=...)`
 - `custom_reply(room_id, message_type, message, ...)`
 - `noa_health()`
 - `get_open_chat_profiles()`
@@ -58,9 +59,63 @@ result = api.share_member_open_profile(
 print(result["url"])
 ```
 
-### `custom_reply` 실제 파라미터
+### 멘션을 자동 생성하는 `custom_text`
+
+일반 텍스트에 멘션을 넣을 때는 `custom_reply`의 `attachment`를 직접
+만들 필요 없이 템플릿 플레이스홀더를 사용할 수 있습니다.
+
+```python
+chat.custom_text(
+    "{sender} 님 안녕하세요!",
+    mentions={"sender": chat.sender},
+)
+```
+
+위 코드는 `chat.sender.id`와 `chat.sender.name`을 읽어 다음을 자동
+처리합니다.
+
+- `{sender}`를 `@<닉네임>`으로 치환
+- KakaoTalk `attachment.mentions` 생성
+- 이모지를 포함한 UTF-16 `at`, `len` 자동 계산
+- 같은 사용자가 여러 번 등장하면 `at` 목록으로 통합
+
+여러 사용자도 각각 이름을 붙여 멘션할 수 있습니다.
+
+```python
+chat.custom_text(
+    "{sender} 님과 {manager} 님, 확인해 주세요.",
+    mentions={
+        "sender": chat.sender,
+        "manager": manager_user,
+    },
+)
+```
+
+`User` 객체가 없으면 `Mention` 객체로 ID와 표시 닉네임을 직접
+지정합니다.
+
+```python
+from iris import Mention
+
+chat.custom_text(
+    "{target} 님 반갑습니다.",
+    mentions={
+        "target": Mention(
+            user_id="7626329973288865709",
+            nickname="사용자😀",
+        )
+    },
+)
+```
+
+문자열에 실제 `{` 또는 `}`를 넣으려면 `{{`, `}}`로 작성합니다.
+플레이스홀더가 누락되었거나 사용되지 않은 멘션 대상이 있으면
+잘못된 사용자를 멘션하지 않도록 전송 전에 `ValueError`를 발생시킵니다.
+
+### `custom_reply` 저수준 파라미터
 
 `custom_reply`는 KakaoTalk `chat_sending_logs`에 들어가는 필드를 기준으로 받습니다.
+멘션의 위치를 직접 제어해야 하는 경우에만 이 저수준 메서드를 사용하면 됩니다.
 각 인자와 실제 Noa `custom` 데이터의 대응은 다음과 같습니다.
 
 | Python 인자 | Noa `data` 필드 | 필수 | 설명 |

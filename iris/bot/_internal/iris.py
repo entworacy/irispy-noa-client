@@ -1,5 +1,7 @@
 import base64
+import string
 import typing as t
+from collections.abc import Mapping
 from dataclasses import dataclass
 from io import BufferedIOBase, BufferedReader, BytesIO
 
@@ -9,6 +11,22 @@ from PIL import Image
 
 class IrisError(RuntimeError):
     """Raised when Iris or a Noa extension endpoint rejects a request."""
+
+
+@dataclass(frozen=True)
+class Mention:
+    """A KakaoTalk mention target used by :meth:`IrisAPI.custom_text`."""
+
+    user_id: int | str
+    nickname: str
+
+
+class _MentionUser(t.Protocol):
+    @property
+    def id(self) -> int | str: ...
+
+    @property
+    def name(self) -> str | None: ...
 
 
 @dataclass
@@ -115,6 +133,34 @@ class IrisAPI:
             timeout=self.timeout,
         )
         return self.__parse(res)
+
+    def custom_text(
+        self,
+        room_id: int | str,
+        template: str,
+        *,
+        mentions: Mapping[str, Mention | _MentionUser] | None = None,
+        attachment: dict | None = None,
+        **kwargs,
+    ):
+        """Send custom text while generating KakaoTalk mention ranges."""
+        message, generated_mentions = _render_mentions(template, mentions or {})
+        if attachment is not None and not isinstance(attachment, dict):
+            raise TypeError("attachment must be a dict")
+        payload = dict(attachment or {})
+        if generated_mentions:
+            if "mentions" in payload:
+                raise ValueError(
+                    "attachment must not contain mentions when mentions are provided"
+                )
+            payload["mentions"] = generated_mentions
+        return self.custom_reply(
+            room_id,
+            message_type=1,
+            message=message,
+            attachment=payload,
+            **kwargs,
+        )
 
     def noa_health(self):
         res = requests.get(self.__noa_url("health"), timeout=self.timeout)
@@ -240,7 +286,10 @@ class IrisAPI:
             )
             return self.__parse(res)
         else:
-            print("이미지 전송이 모두 실패하였습니다. 이미지 전송 요청 부분을 확인해주세요.")
+            print(
+                "이미지 전송이 모두 실패하였습니다. "
+                "이미지 전송 요청 부분을 확인해주세요."
+            )
 
     def decrypt(self, enc: int, b64_ciphertext: str, user_id: int) -> str | None:
         res = requests.post(
@@ -268,3 +317,73 @@ class IrisAPI:
     def get_aot(self):
         res = requests.get(f"{self.iris_endpoint}/aot", timeout=self.timeout)
         return self.__parse(res)
+
+
+def _render_mentions(
+    template: str,
+    mentions: Mapping[str, Mention | _MentionUser],
+) -> tuple[str, list[dict]]:
+    if not isinstance(template, str):
+        raise TypeError("template must be a string")
+
+    parts = []
+    utf16_offset = 0
+    used = set()
+    rendered_mentions = {}
+    parsed = string.Formatter().parse(template)
+    for literal, field_name, format_spec, conversion in parsed:
+        parts.append(literal)
+        utf16_offset += _utf16_length(literal)
+        if field_name is None:
+            continue
+        if not field_name or format_spec or conversion:
+            raise ValueError("mention placeholders cannot use formatting or conversion")
+        if field_name not in mentions:
+            raise ValueError(f"mention target is missing: {field_name}")
+
+        target = _coerce_mention(mentions[field_name])
+        used.add(field_name)
+        key = (target.user_id, target.nickname)
+        rendered_mentions.setdefault(
+            key,
+            {
+                "user_id": target.user_id,
+                "at": [],
+                "len": _utf16_length(target.nickname),
+            },
+        )["at"].append(utf16_offset + 1)
+
+        rendered = f"@{target.nickname}"
+        parts.append(rendered)
+        utf16_offset += _utf16_length(rendered)
+
+    unused = set(mentions) - used
+    if unused:
+        raise ValueError(f"unused mention targets: {', '.join(sorted(unused))}")
+    return "".join(parts), list(rendered_mentions.values())
+
+
+def _coerce_mention(value: Mention | _MentionUser) -> Mention:
+    if isinstance(value, Mention):
+        user_id = value.user_id
+        nickname = value.nickname
+    else:
+        user_id = getattr(value, "id", None)
+        nickname = getattr(value, "name", None)
+
+    try:
+        parsed_user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise ValueError("mention user_id must be a positive 64-bit integer") from None
+    if (
+        isinstance(user_id, bool)
+        or not 1 <= parsed_user_id <= 9_223_372_036_854_775_807
+    ):
+        raise ValueError("mention user_id must be a positive 64-bit integer")
+    if not isinstance(nickname, str) or not nickname.strip():
+        raise ValueError("mention nickname must be a non-empty string")
+    return Mention(parsed_user_id, nickname)
+
+
+def _utf16_length(value: str) -> int:
+    return len(value.encode("utf-16-le")) // 2

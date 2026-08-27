@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from iris import ChatContext, IrisAPI, IrisError
+from iris import ChatContext, IrisAPI, IrisError, Mention
 
 
 def response(status_code=200, payload=None):
@@ -63,6 +63,34 @@ class NoaApiTests(unittest.TestCase):
         self.assertEqual(payload["data"]["chat_id"], "123")
         self.assertEqual(payload["data"]["thread_id"], "456")
         self.assertEqual(payload["data"]["attachment"], {"mentions": []})
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_custom_text_generates_utf16_mention_ranges(self, post):
+        post.return_value = response(payload={"success": True})
+
+        self.api.custom_text(
+            123,
+            "{sender} 님, {sender}! {{ok}}",
+            mentions={"sender": Mention(99, "사용자😀")},
+        )
+
+        data = post.call_args.kwargs["json"]["data"]
+        self.assertEqual(data["type"], 1)
+        self.assertEqual(data["message"], "@사용자😀 님, @사용자😀! {ok}")
+        self.assertEqual(
+            data["attachment"],
+            {"mentions": [{"user_id": 99, "at": [1, 11], "len": 5}]},
+        )
+
+    def test_custom_text_rejects_missing_or_unused_mentions(self):
+        with self.assertRaisesRegex(ValueError, "missing"):
+            self.api.custom_text(123, "{sender}")
+        with self.assertRaisesRegex(ValueError, "unused"):
+            self.api.custom_text(
+                123,
+                "hello",
+                mentions={"sender": Mention(99, "user")},
+            )
 
     @patch("iris.bot._internal.iris.requests.post")
     def test_share_member_profile_keeps_large_ids_as_strings(self, post):
@@ -141,6 +169,21 @@ class ChatContextNoaTests(unittest.TestCase):
         self.context.leave_room()
 
         self.api.leave_room.assert_called_once_with(18422091737011039)
+
+    def test_custom_text_uses_current_room(self):
+        self.context.sender.id = 99
+        self.context.sender.name = "user"
+
+        self.context.custom_text(
+            "{sender} hello",
+            mentions={"sender": self.context.sender},
+        )
+
+        self.api.custom_text.assert_called_once_with(
+            18422091737011039,
+            "{sender} hello",
+            mentions={"sender": self.context.sender},
+        )
 
 
 if __name__ == "__main__":

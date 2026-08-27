@@ -1,6 +1,6 @@
 [project]
 name = "irispy-noa-client"
-version = "0.3.0"
+version = "0.4.0"
 description = "An Iris bot client with first-class Noa extension support"
 authors = [{ name = "dolidolih", email = "dolidolih@proton.me" }]
 maintainers = [{ name = "entworacy" }]

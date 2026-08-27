@@ -256,6 +256,24 @@ class ChatContext:
             room_id = self.room.id
         return self.api.custom_reply(room_id, message_type, message, **kwargs)
 
+    def custom_text(
+        self,
+        template: str,
+        *,
+        mentions=None,
+        room_id: int | None = None,
+        **kwargs,
+    ):
+        """Send custom text with automatically generated mention ranges."""
+        if room_id is None:
+            room_id = self.room.id
+        return self.api.custom_text(
+            room_id,
+            template,
+            mentions=mentions,
+            **kwargs,
+        )
+
     def kick_member(
         self,
         *,

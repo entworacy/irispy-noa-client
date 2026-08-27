@@ -58,6 +58,85 @@ result = api.share_member_open_profile(
 print(result["url"])
 ```
 
+### `custom_reply` 실제 파라미터
+
+`custom_reply`는 KakaoTalk `chat_sending_logs`에 들어가는 필드를 기준으로 받습니다.
+각 인자와 실제 Noa `custom` 데이터의 대응은 다음과 같습니다.
+
+| Python 인자 | Noa `data` 필드 | 필수 | 설명 |
+|---|---|---:|---|
+| `room_id` | `chat_id` | 예 | 대상 채팅방 ID. 외부 `room`에도 같은 값이 들어갑니다. |
+| `message_type` | `type` | 예 | KakaoTalk 메시지 타입. 일반 텍스트는 `1`입니다. |
+| `message` | `message` | 아니오 | 말풍선에 표시할 문자열. |
+| `attachment` | `attachment` | 아니오 | 멘션 등 메시지 타입별 첨부 JSON. 기본값은 `{}`. |
+| `supplement` | `supplement` | 아니오 | KakaoTalk supplement JSON. 보통 `None`. |
+| `thread_id` | `thread_id` | 아니오 | 스레드 메시지 ID. 보통 `None`. |
+| `scope` | `scope` | 아니오 | 메시지 scope. 기본값 `1`. |
+| `v` | `v` | 아니오 | KakaoTalk 메타데이터 JSON. 보통 `None`. |
+| `is_silence` | `is_silence` | 아니오 | 조용한 메시지 표시. 기본값 `0`. |
+| `created_at` | `created_at` | 아니오 | Unix 초 단위 생성 시각. 생략 시 Noa가 현재 시각을 사용합니다. |
+| `client_message_id` | `client_message_id` | 아니오 | 양수이며 기존 값과 중복되지 않아야 합니다. 보통 생략하여 Noa가 생성하게 합니다. |
+
+예를 들어 발신자 `@사용자😀`를 실제 KakaoTalk 멘션으로 표시하려면
+`attachment.mentions` 안에 사용자 ID와 UTF-16 기준 범위를 넣습니다.
+
+```python
+def utf16_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+nickname = chat.sender.name
+mention = f"@{nickname}"
+
+chat.custom_reply(
+    message_type=1,
+    message=f"{mention} 님 안녕하세요!",
+    attachment={
+        "mentions": [
+            {
+                "user_id": int(chat.sender.id),
+                # @ 다음의 닉네임이 시작하는 UTF-16 인덱스
+                "at": [1],
+                # @를 제외한 닉네임의 UTF-16 길이
+                "len": utf16_length(nickname),
+            }
+        ]
+    },
+    supplement=None,
+    thread_id=None,
+    scope=1,
+    v=None,
+    is_silence=0,
+)
+```
+
+위 호출은 Iris `/reply`에 다음 형태로 전송됩니다. `ChatContext`를
+사용하면 `room`/`chat_id`는 현재 채팅방 ID로 자동 설정됩니다.
+
+```json
+{
+  "type": "custom",
+  "room": "18422091737011039",
+  "data": {
+    "type": 1,
+    "message": "@사용자😀 님 안녕하세요!",
+    "attachment": {
+      "mentions": [{"user_id": 7626329973288865709, "at": [1], "len": 5}]
+    },
+    "supplement": null,
+    "chat_id": "18422091737011039",
+    "thread_id": null,
+    "scope": 1,
+    "v": null,
+    "is_silence": 0
+  }
+}
+```
+
+`attachment`, `supplement`, `v`는 Python `dict` 또는 유효한 JSON 문자열을
+받습니다. `attachment`의 세부 스키마는 `message_type`에 따라 다르며,
+Noa가 임의의 KakaoTalk 첨부 형식을 변환해 주지는 않습니다.
+
 `ChatContext`에서도 현재 채팅방을 자동으로 사용하는 편의 메서드를 제공합니다.
 
 ```python

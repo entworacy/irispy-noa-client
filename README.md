@@ -13,6 +13,84 @@ pip install git+https://github.com/entworacy/irispy-noa-client.git
 
 Python 3.10 이상이 필요합니다.
 
+## 기존 `irispy-client`에서 전환
+
+두 패키지는 모두 `iris` import 네임을 사용하므로, 기존 패키지를
+먼저 제거한 뒤 Noa 클라이언트를 설치합니다.
+
+```bash
+pip uninstall -y irispy-client
+pip install "irispy-noa-client @ git+https://github.com/entworacy/irispy-noa-client.git@87ba91279d1ec7986596cd7a6a541bf7fdd44624"
+```
+
+`pyproject.toml`에서는 기존 의존성을:
+
+```toml
+dependencies = [
+  "irispy-client @ git+https://github.com/dolidolih/irispy-client.git@11d8720df558cc7a45c76f37b75ce7e1f6002f8a",
+]
+```
+
+다음과 같이 교체합니다.
+
+```toml
+dependencies = [
+  "irispy-noa-client @ git+https://github.com/entworacy/irispy-noa-client.git@87ba91279d1ec7986596cd7a6a541bf7fdd44624",
+]
+```
+
+기존 import와 일반 Iris 사용 코드는 변경할 필요가 없습니다.
+
+```python
+from iris import Bot, ChatContext, IrisAPI, Mention
+
+bot = Bot("127.0.0.1:3000")
+```
+
+강퇴, 오픈채팅 입장, 접근성 custom 재전송처럼 시간이 걸릴 수 있는
+Noa 작업을 사용한다면 HTTP timeout을 늘리는 것을 권장합니다.
+
+```python
+bot = Bot(
+    "127.0.0.1:3000",
+    noa_prefix="/noa",
+    timeout=130.0,
+)
+```
+
+기존에 `/reply`로 `custom` JSON을 직접 전송했다면 `ChatContext`의
+편의 메서드로 교체할 수 있습니다.
+
+```python
+# 기존: requests.post(..., json={"type": "custom", ...})
+
+# 변경 후: 현재 채팅방 ID가 자동 사용됩니다.
+chat.custom_reply(
+    message_type=1,
+    message="메시지",
+    attachment={},
+)
+```
+
+멘션의 `attachment.mentions`, UTF-16 `at`, `len`을 직접 계산했다면
+`custom_text` 템플릿으로 교체합니다.
+
+```python
+chat.custom_text(
+    "{sender} 님 안녕하세요!",
+    mentions={"sender": chat.sender},
+)
+```
+
+설치된 버전을 확인합니다.
+
+```bash
+python -c "import iris; print(iris.__version__)"
+```
+
+`0.4.0`이 출력되면 정상입니다. 실행 중인 봇은 패키지 교체 후
+반드시 재시작해야 합니다.
+
 ## Noa 확장 API
 
 `Bot.api` 또는 직접 생성한 `IrisAPI`에서 다음 메서드를 사용할 수 있습니다.

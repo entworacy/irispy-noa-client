@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from iris import IrisAPI, IrisError
+from iris import ChatContext, IrisAPI, IrisError
 
 
 def response(status_code=200, payload=None):
@@ -107,6 +107,40 @@ class NoaApiTests(unittest.TestCase):
             self.api.kick_member(123)
         with self.assertRaises(ValueError):
             self.api.share_open_profile(123, mode="fast")
+
+
+class ChatContextNoaTests(unittest.TestCase):
+    def setUp(self):
+        self.api = Mock(spec=IrisAPI)
+        self.context = ChatContext(
+            room=Mock(id=18422091737011039),
+            sender=Mock(),
+            message=Mock(),
+            raw={},
+            api=self.api,
+        )
+
+    def test_share_member_profile_uses_current_room(self):
+        self.api.share_member_open_profile.return_value = {
+            "url": "https://open.kakao.com/me/x"
+        }
+
+        result = self.context.share_member_open_profile(
+            7626329973288865709,
+            mode="hook",
+        )
+
+        self.assertEqual(result["url"], "https://open.kakao.com/me/x")
+        self.api.share_member_open_profile.assert_called_once_with(
+            18422091737011039,
+            7626329973288865709,
+            mode="hook",
+        )
+
+    def test_leave_room_uses_current_room(self):
+        self.context.leave_room()
+
+        self.api.leave_room.assert_called_once_with(18422091737011039)
 
 
 if __name__ == "__main__":

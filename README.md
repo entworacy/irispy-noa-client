@@ -67,6 +67,15 @@ def on_message(chat):
         chat.reply_markdown("**Noa Markdown**")
     elif chat.message.command == "!kick":
         chat.kick_member(user_id="7626329973288865709")
+    elif chat.message.command == "!profile":
+        result = chat.share_member_open_profile(
+            "7626329973288865709",
+            mode="hook",
+        )
+        chat.reply(result["url"])
+
+# 현재 채팅방에서 나가기
+# chat.leave_room()
 ```
 
 Noa prefix를 변경해 설치했다면 클라이언트에도 동일하게 지정합니다.

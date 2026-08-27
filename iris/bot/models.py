@@ -269,6 +269,23 @@ class ChatContext:
             nickname=nickname,
         )
 
+    def share_member_open_profile(
+        self,
+        user_id: int | str,
+        *,
+        mode: str = "auto",
+    ):
+        """Share a member's open-profile URL from this room through Noa."""
+        return self.api.share_member_open_profile(
+            self.room.id,
+            user_id,
+            mode=mode,
+        )
+
+    def leave_room(self):
+        """Leave this chat room through Noa."""
+        return self.api.leave_room(self.room.id)
+
     def reply_media(
         self,
         files: t.List[BufferedIOBase | bytes | Image.Image | str],

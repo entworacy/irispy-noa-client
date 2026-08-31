@@ -205,6 +205,12 @@ class IrisAPI(VoxMixin):
             data["nickname"] = nickname.strip()
         return self._post_noa(f"rooms/{room_id}/kick", data)
 
+    def hide_message(self, room_id: int | str, log_id: int | str):
+        """Hide an open-chat message through Noa's KakaoTalk hook."""
+        room = _positive_id("room_id", room_id)
+        log = _positive_id("log_id", log_id)
+        return self._post_noa(f"rooms/{room}/messages/{log}/hide")
+
     def leave_room(self, room_id: int | str):
         return self._post_noa(f"rooms/{room_id}/leave")
 
@@ -382,6 +388,16 @@ def _render_mentions(
     if unused:
         raise ValueError(f"unused mention targets: {', '.join(sorted(unused))}")
     return "".join(parts), rendered_mentions
+
+
+def _positive_id(name: str, value: int | str) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a positive 64-bit integer") from None
+    if isinstance(value, bool) or not 1 <= parsed <= 9_223_372_036_854_775_807:
+        raise ValueError(f"{name} must be a positive 64-bit integer")
+    return parsed
 
 
 def _coerce_mention(value: Mention | _MentionUser) -> Mention:

@@ -496,6 +496,9 @@ def on_message(chat):
         chat.reply_markdown("**Noa Markdown**")
     elif chat.message.command == "!kick":
         chat.kick_member(user_id="7626329973288865709")
+    elif chat.message.command == "!hide":
+        # 현재 명령 메시지를 가립니다. 다른 메시지는 log_id를 넘깁니다.
+        chat.hide_message()
     elif chat.message.command == "!profile":
         result = chat.share_member_open_profile(
             "7626329973288865709",
@@ -506,6 +509,10 @@ def on_message(chat):
 # 현재 채팅방에서 나가기
 # chat.leave_room()
 ```
+
+오픈채팅 메시지 가리기는 Noa의 KakaoTalk 후킹 모드와 방장 권한이 필요합니다.
+API 객체에서는 `api.hide_message(room_id, log_id)`, 이벤트 컨텍스트에서는
+`chat.hide_message()` 또는 `chat.hide_message(log_id)`를 사용합니다.
 
 Noa prefix를 변경해 설치했다면 클라이언트에도 동일하게 지정합니다.
 
@@ -633,6 +640,7 @@ Bot(
 
 - `reply(message: str, room_id: int = None)`: 채팅방에 답장을 보냅니다.
 - `reply_media(files: list, room_id: int = None)`: 채팅방에 미디어 파일을 보냅니다.
+- `hide_message(log_id: int | str | None = None)`: 지정한 메시지를 가립니다. 생략하면 현재 메시지를 사용합니다.
 - `get_source()`: 답장하는 메시지의 `ChatContext`를 반환합니다.
 - `get_next_chat(n: int = 1)`: 채팅 기록에서 다음 메시지의 `ChatContext`를 반환합니다.
 - `get_previous_chat(n: int = 1)`: 채팅 기록에서 이전 메시지의 `ChatContext`를 반환합니다.

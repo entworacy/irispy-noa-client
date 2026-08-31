@@ -35,6 +35,43 @@ class NoaApiTests(unittest.TestCase):
         )
 
     @patch("iris.bot._internal.iris.requests.post")
+    def test_hide_message_uses_room_and_log_path(self, post):
+        post.return_value = response(payload={"ok": True, "accepted": True})
+
+        result = self.api.hide_message(18422091737011039, 7626329973288865709)
+
+        self.assertTrue(result["accepted"])
+        post.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/rooms/18422091737011039/messages/7626329973288865709/hide",
+            json=None,
+            timeout=12.5,
+        )
+
+    def test_hide_message_rejects_invalid_ids(self):
+        with self.assertRaises(ValueError):
+            self.api.hide_message(0, 1)
+        with self.assertRaises(ValueError):
+            self.api.hide_message(1, "not-a-number")
+
+    def test_chat_context_hides_current_or_explicit_message(self):
+        api = Mock()
+        chat = ChatContext(
+            room=Mock(id=123),
+            sender=Mock(),
+            message=Mock(id=456),
+            raw={},
+            api=api,
+        )
+
+        chat.hide_message()
+        chat.hide_message(789)
+
+        self.assertEqual(
+            api.hide_message.call_args_list,
+            [unittest.mock.call(123, 456), unittest.mock.call(123, 789)],
+        )
+
+    @patch("iris.bot._internal.iris.requests.post")
     def test_markdown_uses_iris_reply(self, post):
         post.return_value = response(payload={"success": True})
 

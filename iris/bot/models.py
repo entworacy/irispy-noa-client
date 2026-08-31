@@ -287,6 +287,12 @@ class ChatContext:
             nickname=nickname,
         )
 
+    def hide_message(self, log_id: int | str | None = None):
+        """Hide a message in this open-chat room; defaults to the current message."""
+        if log_id is None:
+            log_id = self.message.id
+        return self.api.hide_message(self.room.id, log_id)
+
     def share_member_open_profile(
         self,
         user_id: int | str,

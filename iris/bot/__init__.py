@@ -16,7 +16,7 @@ class Bot:
         *,
         max_workers=None,
         noa_prefix: str = "/noa",
-        timeout: float = 30.0,
+        timeout: float | tuple[float, float] | None = 30.0,
     ):
         self.emitter = EventEmitter(max_workers=max_workers)
 

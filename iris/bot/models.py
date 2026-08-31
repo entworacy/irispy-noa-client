@@ -304,6 +304,60 @@ class ChatContext:
         """Leave this chat room through Noa."""
         return self.api.leave_room(self.room.id)
 
+    def vox_status(self):
+        """Return the current VOX session and audio injector state."""
+        return self.api.vox_status()
+
+    def vox_start_voice_talk(
+        self,
+        *,
+        peer_ids: t.Iterable[int | str] | None = None,
+    ):
+        """Start a voice call in this chat room."""
+        return self.api.vox_start_voice_talk(
+            self.room.id,
+            peer_ids=peer_ids,
+        )
+
+    def vox_create_voice_room(self, *, title: str | None = None):
+        """Create an open-chat voice room with an optional title."""
+        return self.api.vox_create_voice_room(self.room.id, title=title)
+
+    def vox_join_voice_room(self):
+        """Join the active voice room in this chat room."""
+        return self.api.vox_join_voice_room(self.room.id)
+
+    def vox_leave(self, *, kind: str):
+        """Leave the current ``cecall`` or ``voiceroom`` session."""
+        return self.api.vox_leave(self.room.id, kind=kind)
+
+    def vox_audio_start(self, *, mode: str | None = None):
+        """Start PCM injection in ``replace`` or ``mix`` mode."""
+        return self.api.vox_audio_start(mode=mode)
+
+    def vox_audio_push(self, pcm: bytes | bytearray | memoryview):
+        """Push one s16le 48 kHz mono PCM chunk."""
+        return self.api.vox_audio_push(pcm)
+
+    def vox_audio_stream(
+        self,
+        source,
+        *,
+        mode: str | None = None,
+        kind: str | None = None,
+    ):
+        """Stream PCM while requiring this chat room to remain active."""
+        return self.api.vox_audio_stream(
+            source,
+            mode=mode,
+            kind=kind,
+            room_id=self.room.id,
+        )
+
+    def vox_audio_stop(self):
+        """Stop PCM injection and clear the pending audio queue."""
+        return self.api.vox_audio_stop()
+
     def reply_media(
         self,
         files: t.List[BufferedIOBase | bytes | Image.Image | str],

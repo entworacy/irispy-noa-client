@@ -1,4 +1,4 @@
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from iris.bot import Bot
 from iris.bot._internal.iris import IrisAPI, IrisError, Mention

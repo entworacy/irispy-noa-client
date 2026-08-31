@@ -8,6 +8,8 @@ from io import BufferedIOBase, BufferedReader, BytesIO
 import requests
 from PIL import Image
 
+from iris.bot._internal.vox import VoxAudioSource, VoxMixin
+
 
 class IrisError(RuntimeError):
     """Raised when Iris or a Noa extension endpoint rejects a request."""
@@ -37,13 +39,13 @@ class IrisRequest:
     raw: dict
 
 
-class IrisAPI:
+class IrisAPI(VoxMixin):
     def __init__(
         self,
         iris_endpoint: str,
         *,
         noa_prefix: str = "/noa",
-        timeout: float = 30.0,
+        timeout: float | tuple[float, float] | None = 30.0,
     ):
         self.iris_endpoint = iris_endpoint.rstrip("/")
         self.noa_prefix = "/" + noa_prefix.strip("/")
@@ -64,10 +66,30 @@ class IrisAPI:
     def __noa_url(self, path: str) -> str:
         return f"{self.iris_endpoint}{self.noa_prefix}/{path.lstrip('/')}"
 
-    def __post_noa(self, path: str, data: dict | None = None) -> dict:
+    def _get_noa(self, path: str) -> dict:
+        res = requests.get(self.__noa_url(path), timeout=self.timeout)
+        return self.__parse(res)
+
+    def _post_noa(self, path: str, data: dict | None = None) -> dict:
         res = requests.post(
             self.__noa_url(path),
             json=data,
+            timeout=self.timeout,
+        )
+        return self.__parse(res)
+
+    def _post_noa_binary(
+        self,
+        path: str,
+        data: VoxAudioSource,
+        *,
+        params: dict[str, str] | None = None,
+    ) -> dict:
+        res = requests.post(
+            self.__noa_url(path),
+            params=params,
+            data=data,
+            headers={"Content-Type": "application/octet-stream"},
             timeout=self.timeout,
         )
         return self.__parse(res)
@@ -181,10 +203,10 @@ class IrisAPI:
             data["userId"] = str(user_id)
         if nickname is not None:
             data["nickname"] = nickname.strip()
-        return self.__post_noa(f"rooms/{room_id}/kick", data)
+        return self._post_noa(f"rooms/{room_id}/kick", data)
 
     def leave_room(self, room_id: int | str):
-        return self.__post_noa(f"rooms/{room_id}/leave")
+        return self._post_noa(f"rooms/{room_id}/leave")
 
     def get_open_chat_profiles(self):
         res = requests.get(
@@ -200,7 +222,7 @@ class IrisAPI:
         mode: str = "auto",
     ):
         self.__validate_mode(mode)
-        return self.__post_noa(
+        return self._post_noa(
             "open-chat/profiles/share",
             {"linkId": str(link_id), "mode": mode},
         )
@@ -213,7 +235,7 @@ class IrisAPI:
         mode: str = "auto",
     ):
         self.__validate_mode(mode)
-        return self.__post_noa(
+        return self._post_noa(
             "open-chat/profiles/share-member",
             {"chatId": str(room_id), "userId": str(user_id), "mode": mode},
         )
@@ -227,7 +249,7 @@ class IrisAPI:
         data = {"url": url}
         if profile_id is not None:
             data["profileId"] = str(profile_id)
-        return self.__post_noa("open-chat/join", data)
+        return self._post_noa("open-chat/join", data)
 
     @staticmethod
     def __validate_mode(mode: str):

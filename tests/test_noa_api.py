@@ -1,4 +1,5 @@
 import unittest
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from iris import ChatContext, IrisAPI, IrisError, Mention
@@ -188,6 +189,134 @@ class NoaApiTests(unittest.TestCase):
             self.api.share_open_profile(123, mode="fast")
 
 
+class VoxApiTests(unittest.TestCase):
+    def setUp(self):
+        self.api = IrisAPI(
+            "http://127.0.0.1:3000/",
+            noa_prefix="custom-noa/",
+            timeout=12.5,
+        )
+
+    @patch("iris.bot._internal.iris.requests.get")
+    def test_status_uses_vox_endpoint(self, get):
+        get.return_value = response(payload={"ok": True, "active": True})
+
+        result = self.api.vox_status()
+
+        self.assertTrue(result["active"])
+        get.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/vox/status",
+            timeout=12.5,
+        )
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_voice_talk_keeps_room_and_peer_ids_as_strings(self, post):
+        post.return_value = response(payload={"ok": True})
+
+        self.api.vox_start_voice_talk(
+            18422091737011039,
+            peer_ids=[7626329973288865709, "7626329973288865710"],
+        )
+
+        post.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/vox/voice-talk",
+            json={
+                "chatId": "18422091737011039",
+                "peerIds": ["7626329973288865709", "7626329973288865710"],
+            },
+            timeout=12.5,
+        )
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_voice_room_control_endpoints(self, post):
+        post.return_value = response(payload={"ok": True})
+
+        self.api.vox_create_voice_room(123, title="테스트 보이스룸")
+        self.api.vox_join_voice_room(123)
+        self.api.vox_leave(123, kind="voiceroom")
+
+        self.assertEqual(
+            post.call_args_list[0].kwargs["json"],
+            {"chatId": "123", "title": "테스트 보이스룸"},
+        )
+        self.assertEqual(
+            post.call_args_list[1].kwargs["json"],
+            {"chatId": "123"},
+        )
+        self.assertEqual(
+            post.call_args_list[2].kwargs["json"],
+            {"chatId": "123", "kind": "voiceroom"},
+        )
+        self.assertTrue(
+            post.call_args_list[0].args[0].endswith("/vox/voice-rooms")
+        )
+        self.assertTrue(
+            post.call_args_list[1].args[0].endswith("/vox/voice-rooms/join")
+        )
+        self.assertTrue(post.call_args_list[2].args[0].endswith("/vox/leave"))
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_audio_start_push_and_stop(self, post):
+        post.return_value = response(payload={"ok": True})
+
+        self.api.vox_audio_start(mode="mix")
+        self.api.vox_audio_push(bytearray([0, 255, 1, 254]))
+        self.api.vox_audio_stop()
+
+        self.assertEqual(post.call_args_list[0].kwargs["json"], {"mode": "mix"})
+        self.assertEqual(
+            post.call_args_list[1].args[0],
+            "http://127.0.0.1:3000/custom-noa/vox/audio",
+        )
+        self.assertEqual(post.call_args_list[1].kwargs["data"], b"\x00\xff\x01\xfe")
+        self.assertEqual(
+            post.call_args_list[1].kwargs["headers"],
+            {"Content-Type": "application/octet-stream"},
+        )
+        self.assertEqual(post.call_args_list[1].kwargs["timeout"], 12.5)
+        self.assertTrue(post.call_args_list[2].args[0].endswith("/vox/audio/stop"))
+
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_audio_stream_forwards_source_and_session_constraints(self, post):
+        post.return_value = response(payload={"ok": True, "streamedBytes": 4})
+        source = BytesIO(b"\x00\x00\x01\x00")
+
+        result = self.api.vox_audio_stream(
+            source,
+            mode="replace",
+            kind="cecall",
+            room_id=18422091737011039,
+        )
+
+        self.assertEqual(result["streamedBytes"], 4)
+        post.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/vox/audio/stream",
+            params={
+                "mode": "replace",
+                "kind": "cecall",
+                "chatId": "18422091737011039",
+            },
+            data=source,
+            headers={"Content-Type": "application/octet-stream"},
+            timeout=12.5,
+        )
+
+    def test_vox_inputs_are_validated_before_request(self):
+        for pcm in (b"", b"\x00", b"\x00\x00" * 48_001):
+            with self.subTest(length=len(pcm)), self.assertRaises(ValueError):
+                self.api.vox_audio_push(pcm)
+        with self.assertRaises(TypeError):
+            self.api.vox_audio_push("not bytes")
+        with self.assertRaises(ValueError):
+            self.api.vox_audio_start(mode="invalid")
+        with self.assertRaises(ValueError):
+            self.api.vox_leave(123, kind="invalid")
+        with self.assertRaises(TypeError):
+            self.api.vox_start_voice_talk(123, peer_ids="456")
+        with self.assertRaises(TypeError):
+            self.api.vox_audio_stream("audio.pcm")
+
+
 class ChatContextNoaTests(unittest.TestCase):
     def setUp(self):
         self.api = Mock(spec=IrisAPI)
@@ -234,6 +363,42 @@ class ChatContextNoaTests(unittest.TestCase):
             18422091737011039,
             "{sender} hello",
             mentions={"sender": self.context.sender},
+        )
+
+    def test_vox_room_methods_use_current_room(self):
+        self.context.vox_start_voice_talk(peer_ids=[123, 456])
+        self.context.vox_create_voice_room(title="방 이름")
+        self.context.vox_join_voice_room()
+        self.context.vox_leave(kind="voiceroom")
+
+        self.api.vox_start_voice_talk.assert_called_once_with(
+            18422091737011039,
+            peer_ids=[123, 456],
+        )
+        self.api.vox_create_voice_room.assert_called_once_with(
+            18422091737011039,
+            title="방 이름",
+        )
+        self.api.vox_join_voice_room.assert_called_once_with(18422091737011039)
+        self.api.vox_leave.assert_called_once_with(
+            18422091737011039,
+            kind="voiceroom",
+        )
+
+    def test_vox_stream_requires_current_room(self):
+        source = BytesIO(b"\x00\x00")
+
+        self.context.vox_audio_stream(
+            source,
+            mode="replace",
+            kind="cecall",
+        )
+
+        self.api.vox_audio_stream.assert_called_once_with(
+            source,
+            mode="replace",
+            kind="cecall",
+            room_id=18422091737011039,
         )
 
 

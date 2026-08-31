@@ -208,15 +208,151 @@ with open("audio.pcm", "rb") as pcm:
 api.vox_audio_stop()
 ```
 
-이벤트 핸들러에서는 현재 채팅방 ID를 자동으로 사용하는 동일한
-`ChatContext` 편의 메서드를 사용할 수 있습니다.
+### 노래봇 예제
+
+아래 예제는 오픈채팅 보이스룸을 열고 YouTube URL 또는 검색어의 오디오를
+재생합니다. `yt-dlp`와 `ffmpeg` 실행 파일이 `PATH`에 있어야 합니다.
+
+```bash
+pip install yt-dlp
+```
 
 ```python
+import subprocess
+import threading
+import time
+
+from iris import Bot
+
+
+IRIS_URL = "127.0.0.1:3000"
+VOICE_ROOM_TITLE = "노래봇"
+AUDIO_MODE = "replace"  # 원래 통화 음성과 섞으려면 "mix"
+PCM_BYTES_PER_SECOND = 96_000  # 48 kHz * mono * signed 16-bit
+PCM_CHUNK_BYTES = 9_600        # 100 ms
+
+bot = Bot(
+    IRIS_URL,
+    max_workers=4,             # 재생 중에도 !정지 명령 처리
+    timeout=130.0,
+)
+
+playback_lock = threading.Lock()
+stop_playback = threading.Event()
+
+
+def stop_process(process):
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+
+def play(chat, query):
+    if not playback_lock.acquire(blocking=False):
+        chat.reply("이미 노래를 재생하고 있습니다. 먼저 !정지를 사용해 주세요.")
+        return
+
+    downloader = None
+    decoder = None
+    stop_playback.clear()
+    try:
+        source = query if "://" in query else f"ytsearch1:{query}"
+        downloader = subprocess.Popen(
+            [
+                "yt-dlp",
+                "--no-playlist",
+                "--no-progress",
+                "-f",
+                "bestaudio/best",
+                "-o",
+                "-",
+                source,
+            ],
+            stdout=subprocess.PIPE,
+        )
+        decoder = subprocess.Popen(
+            [
+                "ffmpeg",
+                "-nostdin",
+                "-loglevel",
+                "error",
+                "-i",
+                "pipe:0",
+                "-vn",
+                "-ac",
+                "1",
+                "-ar",
+                "48000",
+                "-f",
+                "s16le",
+                "pipe:1",
+            ],
+            stdin=downloader.stdout,
+            stdout=subprocess.PIPE,
+        )
+        downloader.stdout.close()
+
+        chat.vox_audio_start(mode=AUDIO_MODE)
+        deadline = time.monotonic()
+        while not stop_playback.is_set():
+            chunk = decoder.stdout.read(PCM_CHUNK_BYTES)
+            if not chunk:
+                break
+            chat.vox_audio_push(chunk)
+            deadline += len(chunk) / PCM_BYTES_PER_SECOND
+            stop_playback.wait(max(0, deadline - time.monotonic()))
+
+        if not stop_playback.is_set() and decoder.wait() != 0:
+            raise RuntimeError("ffmpeg 오디오 변환에 실패했습니다")
+    except Exception as error:
+        chat.reply(f"재생 실패: {error}")
+    finally:
+        stop_playback.set()
+        try:
+            chat.vox_audio_stop()
+        finally:
+            stop_process(decoder)
+            stop_process(downloader)
+            playback_lock.release()
+
+
 @bot.on_event("message")
 def on_message(chat):
-    if chat.message.command == "!보이스":
-        chat.vox_create_voice_room(title="음악 테스트")
+    command = chat.message.command
+
+    if command == "!보이스":
+        chat.vox_create_voice_room(title=VOICE_ROOM_TITLE)
+        chat.reply(f"보이스룸을 열었습니다: {VOICE_ROOM_TITLE}")
+    elif command == "!입장":
+        chat.vox_join_voice_room()
+        chat.reply("보이스룸에 입장했습니다.")
+    elif command == "!재생":
+        if not chat.message.has_param:
+            chat.reply("사용법: !재생 <YouTube URL 또는 검색어>")
+            return
+        play(chat, chat.message.param)
+    elif command == "!정지":
+        stop_playback.set()
+        chat.vox_audio_stop()
+        chat.reply("재생을 중지했습니다.")
+    elif command == "!나가기":
+        stop_playback.set()
+        chat.vox_audio_stop()
+        chat.vox_leave(kind="voiceroom")
+        chat.reply("보이스룸에서 나갔습니다.")
+
+
+bot.run()
 ```
+
+명령어 예시는 `!보이스`, `!재생 ELEVATE`, `!정지`, `!나가기` 순서입니다.
+오픈채팅방에 이미 생성된 보이스룸이 있다면 `!입장`을 사용합니다. 저작권 및
+서비스 이용약관상 재생할 수 있는 음원만 사용해야 합니다.
 
 ### 멘션을 자동 생성하는 `custom_text`
 

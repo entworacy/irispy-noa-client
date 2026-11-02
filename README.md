@@ -219,6 +219,9 @@ body = {
 `reply_markdown()`은 기존과 같이 Iris `/reply`에 `type: "markdown"`을 보냅니다.
 Noa가 굵게·기울임·취소선을 카카오톡 RichText의 본문과 서식 범위로 변환합니다.
 한글·이모지와 중첩 서식을 지원하며, 그 밖의 Markdown 문법은 원문으로 남깁니다.
+카카오톡 26.9 이상과 Noa의 `KAKAO_HOOK_ENABLED=true`가 필요합니다.
+Noa는 앱 내부 재전송 경로를 사용하며, 이전 버전이나 비후킹 모드에서는 처리 오류를 반환합니다.
+Iris의 `Enqueued` 응답은 접수만 확인하므로 이후 지원 여부 검사나 전송 성공을 보장하지 않습니다.
 
 ```python
 chat.reply_markdown("**굵게😀** *기울임* ~~취소선~~")

@@ -4,11 +4,15 @@ import typing as t
 from collections.abc import Mapping
 from dataclasses import dataclass
 from io import BufferedIOBase, BufferedReader, BytesIO
+from urllib.parse import urlsplit
 
 import requests
 from PIL import Image
 
+from iris.bot._internal.loco import LocoMixin
 from iris.bot._internal.vox import VoxAudioSource, VoxMixin
+
+FileReplyData = bytes | bytearray | memoryview | str | dict | list
 
 
 class IrisError(RuntimeError):
@@ -39,29 +43,81 @@ class IrisRequest:
     raw: dict
 
 
-class IrisAPI(VoxMixin):
+class IrisAPI(VoxMixin, LocoMixin):
     def __init__(
         self,
         iris_endpoint: str,
         *,
         noa_prefix: str = "/noa",
+        noa_url: str | None = None,
+        noa_token: str | None = None,
         timeout: float | tuple[float, float] | None = 30.0,
     ):
         self.iris_endpoint = iris_endpoint.rstrip("/")
         self.noa_prefix = "/" + noa_prefix.strip("/")
         self.timeout = timeout
+        self.noa_url = None if noa_url is None else _noa_base_url(noa_url)
+        if noa_token is not None:
+            if self.noa_url is None:
+                raise ValueError("noa_token requires noa_url")
+            if (
+                not isinstance(noa_token, str)
+                or not noa_token
+                or any(c.isspace() for c in noa_token)
+            ):
+                raise ValueError("noa_token must be a non-empty token without whitespace")
+        self._noa_token = noa_token
 
-    def __parse(self, res: requests.Response) -> dict:
+    def __parse(self, res: requests.Response) -> dict | list:
         try:
-            data: dict = res.json()
+            data = res.json()
         except Exception:
             raise IrisError(f"Iris 응답 JSON 파싱 오류: {res.text}")
 
-        if not 200 <= res.status_code <= 299:
-            message = data.get("error") or data.get("message") or "알 수 없는 오류"
+        failed = isinstance(data, dict) and (
+            data.get("success") is False or data.get("ok") is False
+        )
+        if not 200 <= res.status_code <= 299 or failed:
+            message = (
+                (data.get("error") or data.get("message"))
+                if isinstance(data, dict) else None
+            )
+            message = message or "알 수 없는 오류"
             raise IrisError(f"Iris 오류 ({res.status_code}): {message}")
 
+        if not isinstance(data, (dict, list)):
+            raise IrisError("Iris 응답은 JSON 객체 또는 배열이어야 합니다")
         return data
+
+    def __noa_direct_url(self, path: str) -> str:
+        if self.noa_url is None:
+            raise ValueError("this API requires noa_url, for example http://127.0.0.1:4000")
+        return f"{self.noa_url}/{path.lstrip('/')}"
+
+    def __noa_headers(self) -> dict[str, str]:
+        if self._noa_token is None:
+            return {}
+        return {"Authorization": f"Bearer {self._noa_token}"}
+
+    def _get_noa_direct(self, path: str, *, params: dict | None = None) -> dict | list:
+        res = requests.get(
+            self.__noa_direct_url(path),
+            params=params,
+            headers=self.__noa_headers(),
+            timeout=self.timeout,
+            allow_redirects=False,
+        )
+        return self.__parse(res)
+
+    def _post_noa_direct(self, path: str, data: dict) -> dict:
+        res = requests.post(
+            self.__noa_direct_url(path),
+            json=data,
+            headers=self.__noa_headers(),
+            timeout=self.timeout,
+            allow_redirects=False,
+        )
+        return self.__parse(res)
 
     def __noa_url(self, path: str) -> str:
         return f"{self.iris_endpoint}{self.noa_prefix}/{path.lstrip('/')}"
@@ -106,12 +162,51 @@ class IrisAPI(VoxMixin):
         return self.__parse(res)
 
     def reply_markdown(self, room_id: int | str, markdown: str):
-        """Send Markdown through Noa's Iris reply interception."""
+        """Submit Markdown using Noa's version-specific transport.
+
+        KakaoTalk 26.9+ uses RichText and requires Noa's Kakao hook.
+        Older versions use the original Markdown Intent without a Kakao hook.
+        Iris v0.33 returns an enqueue acknowledgement, not delivery confirmation.
+        """
         if not isinstance(markdown, str) or not markdown.strip():
             raise ValueError("markdown must be a non-empty string")
         res = requests.post(
             f"{self.iris_endpoint}/reply",
             json={"type": "markdown", "room": str(room_id), "data": markdown},
+            timeout=self.timeout,
+        )
+        return self.__parse(res)
+
+    def reply_file(
+        self,
+        room_id: int | str,
+        *,
+        data: FileReplyData | None = None,
+        path: str | None = None,
+    ) -> dict:
+        """Send bytes, Base64/Data URI, an Iris media object, or an Android path.
+
+        Objects/arrays use Iris v0.33's media handler. Strings and explicit
+        Android paths use Noa when the file hook is enabled. Select one input.
+        """
+        if (data is None) == (path is None):
+            raise ValueError("provide exactly one of data or path")
+        payload = {"type": "file", "room": str(room_id)}
+        if path is not None:
+            if not isinstance(path, str) or not path.startswith("/") or "\0" in path:
+                raise ValueError("path must be an absolute Android file path")
+            payload["path"] = path
+        else:
+            if isinstance(data, (bytes, bytearray, memoryview)):
+                data = base64.b64encode(data).decode("ascii")
+            if not isinstance(data, (str, dict, list)):
+                raise TypeError("data must be bytes, Base64/Data URI, a media object or array")
+            if not data:
+                raise ValueError("data must not be empty")
+            payload["data"] = data
+        res = requests.post(
+            f"{self.iris_endpoint}/reply",
+            json=payload,
             timeout=self.timeout,
         )
         return self.__parse(res)
@@ -131,7 +226,7 @@ class IrisAPI(VoxMixin):
         created_at: int | None = None,
         client_message_id: int | None = None,
     ):
-        """Insert and send a KakaoTalk custom message through Noa."""
+        """Submit a custom message; Iris's Enqueued response is not DB verification."""
         if not isinstance(message_type, int) or not 1 <= message_type <= 65_535:
             raise ValueError("message_type must be between 1 and 65535")
         data = {
@@ -345,6 +440,28 @@ class IrisAPI(VoxMixin):
     def get_aot(self):
         res = requests.get(f"{self.iris_endpoint}/aot", timeout=self.timeout)
         return self.__parse(res)
+
+
+def _noa_base_url(value: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("noa_url must be a non-empty HTTP(S) URL")
+    value = value.strip()
+    if "://" not in value:
+        value = "http://" + value
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or any(c.isspace() for c in value)
+    ):
+        raise ValueError("noa_url must be an HTTP(S) base URL without credentials, query or fragment")
+    # Validate the port before any request is made.
+    _ = parsed.port
+    return value.rstrip("/")
 
 
 def _render_mentions(

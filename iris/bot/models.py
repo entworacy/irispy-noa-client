@@ -238,10 +238,22 @@ class ChatContext:
             print(f"reply 오류: {e}")
 
     def reply_markdown(self, markdown: str, room_id: int | None = None):
-        """Send a Markdown message through Noa."""
+        """Submit Markdown through Noa's version-specific transport; acknowledge enqueueing."""
         if room_id is None:
             room_id = self.room.id
         return self.api.reply_markdown(room_id, markdown)
+
+    def reply_file(
+        self, *, data=None, path: str | None = None, room_id: int | str | None = None
+    ):
+        """Submit a file in this room using exactly one of data or an Android path."""
+        if room_id is None:
+            room_id = self.room.id
+        return self.api.reply_file(room_id, data=data, path=path)
+
+    def send_loco(self, method: str, body: dict) -> dict:
+        """Send a raw LOCO body unchanged; room IDs must be supplied explicitly."""
+        return self.api.send_loco(method, body)
 
     def custom_reply(
         self,

@@ -88,7 +88,7 @@ chat.custom_text(
 python -c "import iris; print(iris.__version__)"
 ```
 
-`0.5.0`이 출력되면 정상입니다. 실행 중인 봇은 패키지 교체 후
+이번 변경의 클라이언트 버전은 `0.6.0`입니다. 실행 중인 봇은 패키지 교체 후
 반드시 재시작해야 합니다.
 
 ## Noa 확장 API
@@ -97,6 +97,10 @@ python -c "import iris; print(iris.__version__)"
 
 - `kick_member(room_id, user_id=..., nickname=...)`
 - `reply_markdown(room_id, markdown)`
+- `reply_file(room_id, data=..., path=...)`
+- `send_loco(method, body)`
+- `get_loco(limit=500)`
+- `noa_status()`
 - `custom_text(room_id, template, mentions=...)`
 - `custom_reply(room_id, message_type, message, ...)`
 - `noa_health()`
@@ -127,7 +131,7 @@ api = IrisAPI("http://127.0.0.1:3000")
 # userId 기준 강퇴
 api.kick_member("18422091737011039", user_id="7626329973288865709")
 
-# Markdown 전송
+# Markdown을 RichText로 변환해 전송
 api.reply_markdown("18422091737011039", "**안녕하세요**")
 
 # KakaoTalk custom message 삽입 및 재전송
@@ -146,6 +150,118 @@ result = api.share_member_open_profile(
 )
 print(result["url"])
 ```
+
+### LOCO 직접 발신
+
+`send_loco`, `get_loco`, `noa_status`는 Noa HTTP 서버에 직접 연결합니다.
+`noa_url`에는 Noa 서버의 기본 주소를, `noa_token`에는 서버의 `NOA_API_TOKEN` 값을
+지정합니다. 서버 인증이 비활성화되어 있으면 `noa_token`을 생략할 수 있습니다.
+기존 Iris 요청과 `/noa` 확장 호출은 지정한 Iris 주소와 `noa_prefix`를 사용합니다.
+
+```python
+import os
+
+from iris import IrisAPI
+
+api = IrisAPI(
+    "http://127.0.0.1:3000",
+    noa_url="http://127.0.0.1:4000",
+    noa_token=os.environ["NOA_API_TOKEN"],
+    timeout=30.0,
+)
+
+print(api.noa_status()["kakaoHookActive"])
+result = api.send_loco("PING", {})
+print(result["packetId"], result["verification"], result["serverConfirmed"])
+packets = api.get_loco(limit=100)
+```
+
+`Bot`에도 같은 `noa_url`, `noa_token`을 지정할 수 있습니다. 이벤트에서는
+`chat.api.send_loco(...)` 또는 `chat.send_loco(...)`를 사용합니다. raw LOCO 본문은
+호출자가 구성하며 채팅방 ID가 자동으로 추가되지 않습니다.
+
+| 메서드 | Noa 경로 | 반환값 |
+| --- | --- | --- |
+| `send_loco(method, body)` | `POST /api/loco/send` | 소켓 쓰기 결과 객체 |
+| `get_loco(limit=500)` | `GET /api/loco` | 최근 캡처 패킷 배열 |
+| `noa_status()` | `GET /api/status` | 후킹·Android·DB 상태 객체 |
+
+LOCO 발신에는 해당 API를 지원하는 Noa와 `KAKAO_HOOK_ENABLED=true`가 필요합니다.
+후킹이 연결된 뒤 카카오톡의 정상 송신이 한 번 관찰되어야 합니다. `method`는
+대문자 ASCII 영문·숫자 1~11자, `body`는 JSON 객체입니다. 본문 크기는 UTF-8 JSON
+기준 최대 64KiB, 중첩 깊이는 최대 32단계입니다. 앱에서 인코딩한 BSON은 Noa가
+128KiB로 제한합니다. 일반 정수는 signed 64-bit 범위여야
+하며 다음 명시적 BSON 형식도 사용할 수 있습니다.
+
+```python
+body = {
+    "id": {"$numberLong": "7626329973288865709"},
+    "count": {"$numberInt": "1"},
+    "ratio": {"$numberDouble": "1.5"},
+    "bytes": {"$binary": "AAH/"},
+}
+```
+
+이 형식은 값 위치에 사용하며 태그 하나와 문자열 값만 포함해야 합니다.
+메서드별 필수 필드는 해당 LOCO 요청에 맞게 구성합니다.
+
+```json
+{"ok":true,"method":"PING","packetId":1000,"bodyLength":5,"verification":"socket-write","serverConfirmed":false}
+```
+
+`ok: true`는 소켓 쓰기와 flush 완료를 뜻합니다. 카카오톡 서버의 수락 여부는
+확인하지 않으며, 대응 응답이 `get_loco()`에 반드시 나타나는 것도 아닙니다.
+쓰기 오류나 타임아웃은 전송 여부가 불확실할 수 있어 클라이언트가 자동 재시도하지
+않습니다. `noa_url` 없이 직접 API를 호출하면 요청 전에 `ValueError`가 발생합니다.
+
+### RichText와 파일 전송
+
+`reply_markdown()`은 기존과 같이 Iris `/reply`에 `type: "markdown"`을 보냅니다.
+RichText 지원 버전에서는 Noa가 굵게·기울임·취소선을 본문과 서식 범위로 변환합니다.
+한글·이모지와 중첩 서식을 지원하며, 그 밖의 Markdown 문법은 원문으로 남깁니다.
+카카오톡 26.9 이상에서는 Noa의 `KAKAO_HOOK_ENABLED=true`가 필요하며 앱 내부 재전송 경로를 사용합니다.
+이전 버전에서는 Markdown 원문과 `markdown: true` attachment를 기존 Intent로 전송하므로 KakaoTalk 후킹이 필요하지 않습니다.
+버전 조회 실패나 지원 버전의 후킹 오류는 구버전 전송으로 대체하지 않습니다.
+Iris의 `Enqueued` 응답은 접수만 확인하므로 이후 지원 여부 검사나 전송 성공을 보장하지 않습니다.
+
+```python
+chat.reply_markdown("**굵게😀** *기울임* ~~취소선~~")
+chat.reply_file(data=b"hello")
+chat.reply_file(path="/sdcard/Download/report.pdf")
+```
+
+`reply_file()`에는 `data`와 `path` 중 하나를 지정합니다. `path`는 Android 기기의
+절대 경로입니다. `data`는 bytes, bytearray, memoryview, Base64 문자열,
+Base64 Data URI 또는 Iris의 미디어 객체·배열을 받습니다.
+
+```python
+# Noa 파일 처리: Base64 Data URI
+api.reply_file(
+    "18422091737011039",
+    data="data:text/plain;name=hello.txt;base64,aGVsbG8=",
+)
+
+# Iris v0.33 미디어 처리: 파일명·MIME을 포함한 객체
+api.reply_file(
+    "18422091737011039",
+    data={"name": "hello.txt", "mime": "text/plain", "data": "aGVsbG8="},
+)
+```
+
+Noa의 `file` 후킹이 활성화되면 문자열·경로 입력을 Noa가 처리합니다. Android 경로
+전송에는 이 후킹이 필요합니다. 객체·배열 입력은 Iris v0.33의 미디어 처리기로
+전달되며, 파일 배열은 Iris의 규칙에 따라 첫 항목만 처리됩니다.
+기존 `reply_media()`는 이미지 전송 용도로 유지됩니다.
+
+### 응답과 오류
+
+Iris v0.33의 `/reply` 성공 응답은 `{"success":true,"message":"Enqueued"}`입니다.
+`reply_markdown()`, `reply_file()`, `custom_reply()`, `custom_text()`는 이 응답을 그대로
+반환합니다. 접수 성공만으로 전송 완료나 custom 메시지의 DB 확인을 판단할 수 없습니다.
+
+HTTP 오류와 `success: false` 또는 `ok: false` 응답은 `IrisError`로 전달됩니다.
+타임아웃·연결 오류는 `requests`의 해당 예외로 전달됩니다. 클라이언트는 성공 응답에
+`verified`나 `serverConfirmed` 값을 추가하지 않습니다.
 
 ### VOX 보이스톡과 PCM 송출
 
@@ -533,6 +649,8 @@ Bot(
     *,
     max_workers: int = None,
     noa_prefix: str = "/noa",
+    noa_url: str | None = None,
+    noa_token: str | None = None,
     timeout: float | tuple[float, float] | None = 30.0,
 )
 ```
@@ -540,6 +658,8 @@ Bot(
 - `iris_url` (str): Iris 서버의 URL (예: "127.0.0.1:3000").
 - `max_workers` (int, optional): 이벤트를 처리하는 데 사용할 최대 스레드 수.
 - `noa_prefix` (str, optional): Iris에 연결된 Noa 확장 경로. 기본값은 `"/noa"`.
+- `noa_url` (str, optional): LOCO 발신·조회와 상태 조회에 사용할 Noa HTTP 서버 기본 주소.
+- `noa_token` (str, optional): 직접 Noa 요청에 사용할 Bearer 토큰. `noa_url`과 함께 지정합니다.
 - `timeout` (float, tuple, None, optional): Iris/Noa HTTP 요청 타임아웃. 기본값은 `30.0`.
   `(connect, read)` 튜플 또는 제한을 두지 않는 `None`도 사용할 수 있습니다.
 
@@ -640,6 +760,9 @@ Bot(
 
 - `reply(message: str, room_id: int = None)`: 채팅방에 답장을 보냅니다.
 - `reply_media(files: list, room_id: int = None)`: 채팅방에 미디어 파일을 보냅니다.
+- `reply_markdown(markdown, room_id=None)`: 카카오톡 버전에 맞는 방식으로 Markdown을 전송합니다.
+- `reply_file(data=..., path=..., room_id=None)`: 파일 데이터 또는 Android 파일 경로를 전송합니다. `data`와 `path` 중 하나를 지정합니다.
+- `send_loco(method, body)`: 본문을 그대로 Noa의 LOCO 발신 API에 전달합니다.
 - `hide_message(log_id: int | str | None = None)`: 지정한 메시지를 가립니다. 생략하면 현재 메시지를 사용합니다.
 - `get_source()`: 답장하는 메시지의 `ChatContext`를 반환합니다.
 - `get_next_chat(n: int = 1)`: 채팅 기록에서 다음 메시지의 `ChatContext`를 반환합니다.

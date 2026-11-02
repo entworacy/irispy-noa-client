@@ -217,10 +217,11 @@ body = {
 ### RichText와 파일 전송
 
 `reply_markdown()`은 기존과 같이 Iris `/reply`에 `type: "markdown"`을 보냅니다.
-Noa가 굵게·기울임·취소선을 카카오톡 RichText의 본문과 서식 범위로 변환합니다.
+RichText 지원 버전에서는 Noa가 굵게·기울임·취소선을 본문과 서식 범위로 변환합니다.
 한글·이모지와 중첩 서식을 지원하며, 그 밖의 Markdown 문법은 원문으로 남깁니다.
-카카오톡 26.9 이상과 Noa의 `KAKAO_HOOK_ENABLED=true`가 필요합니다.
-Noa는 앱 내부 재전송 경로를 사용하며, 이전 버전이나 비후킹 모드에서는 처리 오류를 반환합니다.
+카카오톡 26.9 이상에서는 Noa의 `KAKAO_HOOK_ENABLED=true`가 필요하며 앱 내부 재전송 경로를 사용합니다.
+이전 버전에서는 Markdown 원문과 `markdown: true` attachment를 기존 Intent로 전송하므로 KakaoTalk 후킹이 필요하지 않습니다.
+버전 조회 실패나 지원 버전의 후킹 오류는 구버전 전송으로 대체하지 않습니다.
 Iris의 `Enqueued` 응답은 접수만 확인하므로 이후 지원 여부 검사나 전송 성공을 보장하지 않습니다.
 
 ```python
@@ -759,7 +760,7 @@ Bot(
 
 - `reply(message: str, room_id: int = None)`: 채팅방에 답장을 보냅니다.
 - `reply_media(files: list, room_id: int = None)`: 채팅방에 미디어 파일을 보냅니다.
-- `reply_markdown(markdown, room_id=None)`: Noa에서 RichText로 변환할 Markdown을 전송합니다.
+- `reply_markdown(markdown, room_id=None)`: 카카오톡 버전에 맞는 방식으로 Markdown을 전송합니다.
 - `reply_file(data=..., path=..., room_id=None)`: 파일 데이터 또는 Android 파일 경로를 전송합니다. `data`와 `path` 중 하나를 지정합니다.
 - `send_loco(method, body)`: 본문을 그대로 Noa의 LOCO 발신 API에 전달합니다.
 - `hide_message(log_id: int | str | None = None)`: 지정한 메시지를 가립니다. 생략하면 현재 메시지를 사용합니다.

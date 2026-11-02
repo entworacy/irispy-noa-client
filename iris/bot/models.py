@@ -238,7 +238,7 @@ class ChatContext:
             print(f"reply 오류: {e}")
 
     def reply_markdown(self, markdown: str, room_id: int | None = None):
-        """Submit Markdown for Noa's RichText conversion; the response acknowledges enqueueing."""
+        """Submit Markdown through Noa's version-specific transport; acknowledge enqueueing."""
         if room_id is None:
             room_id = self.room.id
         return self.api.reply_markdown(room_id, markdown)

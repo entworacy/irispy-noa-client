@@ -162,9 +162,10 @@ class IrisAPI(VoxMixin, LocoMixin):
         return self.__parse(res)
 
     def reply_markdown(self, room_id: int | str, markdown: str):
-        """Ask Noa to convert Markdown to KakaoTalk RichText.
+        """Submit Markdown using Noa's version-specific transport.
 
-        Requires KakaoTalk 26.9+ and Noa's Kakao hook for native resend.
+        KakaoTalk 26.9+ uses RichText and requires Noa's Kakao hook.
+        Older versions use the original Markdown Intent without a Kakao hook.
         Iris v0.33 returns an enqueue acknowledgement, not delivery confirmation.
         """
         if not isinstance(markdown, str) or not markdown.strip():

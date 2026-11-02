@@ -16,6 +16,8 @@ class Bot:
         *,
         max_workers=None,
         noa_prefix: str = "/noa",
+        noa_url: str | None = None,
+        noa_token: str | None = None,
         timeout: float | tuple[float, float] | None = 30.0,
     ):
         self.emitter = EventEmitter(max_workers=max_workers)
@@ -43,6 +45,8 @@ class Bot:
         self.api = IrisAPI(
             f"http://{self.iris_url}",
             noa_prefix=noa_prefix,
+            noa_url=noa_url,
+            noa_token=noa_token,
             timeout=timeout,
         )
 

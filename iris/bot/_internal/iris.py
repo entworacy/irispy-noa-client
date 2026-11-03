@@ -300,6 +300,12 @@ class IrisAPI(VoxMixin, LocoMixin):
             data["nickname"] = nickname.strip()
         return self._post_noa(f"rooms/{room_id}/kick", data)
 
+    def kick_left_member(self, room_id: int | str, user_id: int | str):
+        """Kick a departed open-chat user; requires Noa's KakaoTalk hook."""
+        room = _positive_id("room_id", room_id)
+        user = _positive_id("user_id", user_id)
+        return self._post_noa(f"rooms/{room}/kick-left", {"userId": str(user)})
+
     def hide_message(self, room_id: int | str, log_id: int | str):
         """Hide an open-chat message through Noa's KakaoTalk hook."""
         room = _positive_id("room_id", room_id)
@@ -508,11 +514,13 @@ def _render_mentions(
 
 
 def _positive_id(name: str, value: int | str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError(f"{name} must be a positive 64-bit integer")
     try:
         parsed = int(value)
     except (TypeError, ValueError):
         raise ValueError(f"{name} must be a positive 64-bit integer") from None
-    if isinstance(value, bool) or not 1 <= parsed <= 9_223_372_036_854_775_807:
+    if not 1 <= parsed <= 9_223_372_036_854_775_807:
         raise ValueError(f"{name} must be a positive 64-bit integer")
     return parsed
 

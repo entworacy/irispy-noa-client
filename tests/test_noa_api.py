@@ -47,6 +47,24 @@ class NoaApiTests(unittest.TestCase):
             timeout=12.5,
         )
 
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_kick_left_member_uses_explicit_id_and_server_confirmation(self, post):
+        post.return_value = response(payload={"ok": True, "serverConfirmed": True})
+        self.assertTrue(self.api.kick_left_member(123, 9007199254740993)["serverConfirmed"])
+        post.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/rooms/123/kick-left",
+            json={"userId": "9007199254740993"}, timeout=12.5,
+        )
+        for room, user in [(0, 1), (1, 0), (1, True), (1, 1.5), (1, "invalid")]:
+            with self.assertRaises(ValueError):
+                self.api.kick_left_member(room, user)
+
+    def test_chat_context_kicks_departed_user_in_current_room(self):
+        api = Mock()
+        chat = ChatContext(room=Mock(id=123), sender=Mock(), message=Mock(), api=api, raw={})
+        chat.kick_left_member("456")
+        api.kick_left_member.assert_called_once_with(123, "456")
+
     def test_hide_message_rejects_invalid_ids(self):
         with self.assertRaises(ValueError):
             self.api.hide_message(0, 1)

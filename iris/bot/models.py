@@ -292,16 +292,12 @@ class ChatContext:
         user_id: int | str | None = None,
         nickname: str | None = None,
     ):
-        """Kick a member from this open-chat room through Noa."""
+        """Kick a current or departed user from this open-chat room through Noa."""
         return self.api.kick_member(
             self.room.id,
             user_id=user_id,
             nickname=nickname,
         )
-
-    def kick_left_member(self, user_id: int | str):
-        """Kick a user who has already left this open-chat room through Noa."""
-        return self.api.kick_left_member(self.room.id, user_id)
 
     def hide_message(self, log_id: int | str | None = None):
         """Hide a message in this open-chat room; defaults to the current message."""

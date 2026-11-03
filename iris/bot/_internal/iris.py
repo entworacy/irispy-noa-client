@@ -290,21 +290,16 @@ class IrisAPI(VoxMixin, LocoMixin):
         user_id: int | str | None = None,
         nickname: str | None = None,
     ):
-        """Kick an open-chat member using Noa's configured hook/accessibility mode."""
+        """Kick an open-chat user; Noa selects the path by current membership."""
         if user_id is None and (nickname is None or not nickname.strip()):
             raise ValueError("user_id or nickname is required")
+        room = _positive_id("room_id", room_id)
         data = {}
         if user_id is not None:
-            data["userId"] = str(user_id)
+            data["userId"] = str(_positive_id("user_id", user_id))
         if nickname is not None:
             data["nickname"] = nickname.strip()
-        return self._post_noa(f"rooms/{room_id}/kick", data)
-
-    def kick_left_member(self, room_id: int | str, user_id: int | str):
-        """Kick a departed open-chat user; requires Noa's KakaoTalk hook."""
-        room = _positive_id("room_id", room_id)
-        user = _positive_id("user_id", user_id)
-        return self._post_noa(f"rooms/{room}/kick-left", {"userId": str(user)})
+        return self._post_noa(f"rooms/{room}/kick", data)
 
     def hide_message(self, room_id: int | str, log_id: int | str):
         """Hide an open-chat message through Noa's KakaoTalk hook."""

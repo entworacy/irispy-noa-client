@@ -97,6 +97,7 @@ python -c "import iris; print(iris.__version__)"
 
 - `kick_member(room_id, user_id=..., nickname=...)`
 - `unban_member(room_id, user_id)`
+- `react_message(room_id, log_id, reaction_type=..., emoticon=...)`
 - `reply_markdown(room_id, markdown)`
 - `reply_file(room_id, data=..., path=...)`
 - `send_loco(method, body)`
@@ -630,11 +631,15 @@ def on_message(chat):
 
 오픈채팅 메시지 가리기는 Noa의 KakaoTalk 후킹 모드와 방장 권한이 필요합니다.
 `api.kick_member(room_id, user_id=...)` 또는 `chat.kick_member(user_id=...)`로
-현재 참여자와 이미 나간 사용자를 모두 강퇴 처리합니다. Noa가 참여 여부에 따라
+현재 참여자와 이미 나간 사용자를 모두 강퇴 처리합니다. KakaoTalk 후킹이 필수이며 Noa가 참여 여부에 따라
 호출 방식을 선택하므로 별도 메서드나 상태 옵션이 필요하지 않습니다.
-닉네임 검색은 현재 참여자 목록을 사용합니다. 이미 나간 사용자 처리에는
-KakaoTalk 후킹이 필요하며, Noa가 성공 콜백과 KICKMEM 서버 응답을 확인한 뒤
+닉네임 검색은 현재 참여자 목록을 사용합니다. 이미 나간 사용자는 Noa가 성공 콜백과 KICKMEM 서버 응답을 확인한 뒤
 `serverConfirmed: true`를 반환합니다. 서버가 권한이나 대상 조건으로 거절하면 오류를 반환합니다.
+
+메시지 리액션은 `api.react_message(room_id, log_id, reaction_type=1)` 또는
+`chat.react(1)`로 전송합니다. 이모티콘은 `chat.react(emoticon={"type": 1, "id": "item-id"})`로
+지정합니다. `type`은 일반 이모티콘 리액션 `1`, 미니 이모티콘 `2`입니다.
+후킹과 메시지 DB 검증이 필요하며, 내부 성공 콜백을 확인합니다. 이모티콘의 사용 권한은 카카오톡 서버가 판정합니다.
 
 강퇴 제한 해제는 `api.unban_member(room_id, user_id)` 또는
 `chat.unban_member(user_id)`로 요청합니다. KakaoTalk 후킹이 필요하며,

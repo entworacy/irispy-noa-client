@@ -299,6 +299,12 @@ class ChatContext:
             nickname=nickname,
         )
 
+    def react(self, reaction_type: int | None = None, *, emoticon: dict | None = None,
+              log_id: int | str | None = None):
+        """React to the current message or an explicit message in this room."""
+        return self.api.react_message(self.room.id, self.message.id if log_id is None else log_id,
+                                      reaction_type=reaction_type, emoticon=emoticon)
+
     def unban_member(self, user_id: int | str):
         """Remove a user's kick restriction in this open-chat room through Noa."""
         return self.api.unban_member(self.room.id, user_id)

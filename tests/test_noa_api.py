@@ -80,6 +80,34 @@ class NoaApiTests(unittest.TestCase):
         with self.assertRaises(IrisError):
             self.api.unban_member(123, 456)
 
+    @patch("iris.bot._internal.iris.requests.post")
+    def test_message_reaction_selectors_and_large_ids(self, post):
+        post.return_value = response(payload={"ok": True, "accepted": True})
+        self.api.react_message(123, "9007199254740993", reaction_type=1)
+        post.assert_called_once_with(
+            "http://127.0.0.1:3000/custom-noa/rooms/123/messages/9007199254740993/reactions",
+            json={"reactionType": 1}, timeout=12.5)
+        self.api.react_message(123, 456, emoticon={"type": 2, "id": "item"})
+        self.assertEqual(post.call_args.kwargs["json"], {"emoticon": {"type": 2, "id": "item"}})
+        for args in [{}, {"reaction_type": True}, {"reaction_type": 0}, {"reaction_type": 7},
+                     {"reaction_type": 1, "emoticon": {"type": 1, "id": "item"}},
+                     {"emoticon": {"type": 1, "id": ""}}, {"emoticon": {"type": True, "id": "item"}}]:
+            with self.assertRaises(ValueError):
+                self.api.react_message(123, 456, **args)
+        with self.assertRaises(ValueError):
+            self.api.react_message(123, 0, reaction_type=1)
+        post.return_value = response(503, {"error": "native callback timeout"})
+        with self.assertRaises(IrisError):
+            self.api.react_message(123, 456, reaction_type=1)
+
+    def test_chat_context_reacts_to_current_or_explicit_message(self):
+        api = Mock()
+        chat = ChatContext(room=Mock(id=123), sender=Mock(), message=Mock(id=456), api=api, raw={})
+        chat.react(1)
+        api.react_message.assert_called_with(123, 456, reaction_type=1, emoticon=None)
+        chat.react(emoticon={"type": 1, "id": "item"}, log_id="789")
+        api.react_message.assert_called_with(123, "789", reaction_type=None, emoticon={"type": 1, "id": "item"})
+
     def test_chat_context_unbans_user_in_current_room(self):
         api = Mock()
         chat = ChatContext(room=Mock(id=123), sender=Mock(), message=Mock(), api=api, raw={})

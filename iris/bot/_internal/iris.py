@@ -301,6 +301,27 @@ class IrisAPI(VoxMixin, LocoMixin):
             data["nickname"] = nickname.strip()
         return self._post_noa(f"rooms/{room}/kick", data)
 
+    def react_message(self, room_id: int | str, log_id: int | str, *,
+                      reaction_type: int | None = None, emoticon: dict | None = None):
+        """Add a message reaction through Noa's native KakaoTalk hook."""
+        room = _positive_id("room_id", room_id)
+        log = _positive_id("log_id", log_id)
+        if (reaction_type is None) == (emoticon is None):
+            raise ValueError("Specify reaction_type or emoticon")
+        if reaction_type is not None:
+            if type(reaction_type) is not int or not 1 <= reaction_type <= 6:
+                raise ValueError("reaction_type must be an integer from 1 to 6")
+            data = {"reactionType": reaction_type}
+        else:
+            if (not isinstance(emoticon, dict) or set(emoticon) != {"type", "id"}
+                    or type(emoticon["type"]) is not int or emoticon["type"] not in (1, 2)
+                    or not isinstance(emoticon["id"], str) or not emoticon["id"].strip()
+                    or len(emoticon["id"].encode("utf-8")) > 256
+                    or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in emoticon["id"])):
+                raise ValueError("emoticon requires type (1 or 2) and a nonempty id")
+            data = {"emoticon": dict(emoticon)}
+        return self._post_noa(f"rooms/{room}/messages/{log}/reactions", data)
+
     def unban_member(self, room_id: int | str, user_id: int | str):
         """Remove an open-chat user's kick restriction through Noa's KakaoTalk hook."""
         room = _positive_id("room_id", room_id)

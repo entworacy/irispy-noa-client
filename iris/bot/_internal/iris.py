@@ -301,6 +301,12 @@ class IrisAPI(VoxMixin, LocoMixin):
             data["nickname"] = nickname.strip()
         return self._post_noa(f"rooms/{room}/kick", data)
 
+    def unban_member(self, room_id: int | str, user_id: int | str):
+        """Remove an open-chat user's kick restriction through Noa's KakaoTalk hook."""
+        room = _positive_id("room_id", room_id)
+        user = _positive_id("user_id", user_id)
+        return self._post_noa(f"rooms/{room}/unban", {"userId": str(user)})
+
     def hide_message(self, room_id: int | str, log_id: int | str):
         """Hide an open-chat message through Noa's KakaoTalk hook."""
         room = _positive_id("room_id", room_id)

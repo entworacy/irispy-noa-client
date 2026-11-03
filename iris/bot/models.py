@@ -299,6 +299,10 @@ class ChatContext:
             nickname=nickname,
         )
 
+    def unban_member(self, user_id: int | str):
+        """Remove a user's kick restriction in this open-chat room through Noa."""
+        return self.api.unban_member(self.room.id, user_id)
+
     def hide_message(self, log_id: int | str | None = None):
         """Hide a message in this open-chat room; defaults to the current message."""
         if log_id is None:

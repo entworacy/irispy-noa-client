@@ -96,6 +96,7 @@ python -c "import iris; print(iris.__version__)"
 `Bot.api` 또는 직접 생성한 `IrisAPI`에서 다음 메서드를 사용할 수 있습니다.
 
 - `kick_member(room_id, user_id=..., nickname=...)`
+- `unban_member(room_id, user_id)`
 - `reply_markdown(room_id, markdown)`
 - `reply_file(room_id, data=..., path=...)`
 - `send_loco(method, body)`
@@ -130,6 +131,7 @@ api = IrisAPI("http://127.0.0.1:3000")
 
 # userId 기준 강퇴
 api.kick_member("18422091737011039", user_id="7626329973288865709")
+api.unban_member("18422091737011039", "7626329973288865709")
 
 # Markdown을 RichText로 변환해 전송
 api.reply_markdown("18422091737011039", "**안녕하세요**")
@@ -633,6 +635,10 @@ def on_message(chat):
 닉네임 검색은 현재 참여자 목록을 사용합니다. 이미 나간 사용자 처리에는
 KakaoTalk 후킹이 필요하며, Noa가 성공 콜백과 KICKMEM 서버 응답을 확인한 뒤
 `serverConfirmed: true`를 반환합니다. 서버가 권한이나 대상 조건으로 거절하면 오류를 반환합니다.
+
+강퇴 제한 해제는 `api.unban_member(room_id, user_id)` 또는
+`chat.unban_member(user_id)`로 요청합니다. KakaoTalk 후킹이 필요하며,
+Noa가 내부 성공 콜백과 KLDELITEM 서버 응답을 확인한 뒤 `serverConfirmed: true`를 반환합니다.
 
 API 객체에서는 `api.hide_message(room_id, log_id)`, 이벤트 컨텍스트에서는
 `chat.hide_message()` 또는 `chat.hide_message(log_id)`를 사용합니다.

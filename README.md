@@ -91,6 +91,69 @@ python -c "import iris; print(iris.__version__)"
 이번 변경의 클라이언트 버전은 `0.6.0`입니다. 실행 중인 봇은 패키지 교체 후
 반드시 재시작해야 합니다.
 
+## 기능별 실행 예제
+
+[`examples/noa`](examples/noa)에는 Noa 확장 기능별 실행 예제가 있습니다.
+각 파일은 `main()`으로 실행되며, import만으로 요청을 보내지 않습니다.
+클라이언트를 설치한 환경에서 저장소 루트를 작업 디렉터리로 사용합니다.
+
+```bash
+export IRIS_URL="http://127.0.0.1:3000"
+export NOA_URL="http://127.0.0.1:4000"
+export NOA_PREFIX="/noa"
+
+python -m examples.noa.status
+python -m examples.noa.richtext --room 123 --text '**안녕하세요**'
+python -m examples.noa.reactions --room 123 --log 456 --reaction-type 1
+```
+
+ID와 주소는 실제 환경의 값으로 바꿉니다. Noa API 인증이 활성화되어 있다면
+`NOA_API_TOKEN` 환경 변수도 설정합니다. `IRIS_URL`은 Iris 서버 주소이며,
+`NOA_URL`은 LOCO와 Noa 상태 조회에 사용하는 Noa 서버 주소입니다.
+공통 연결 설정은 [`_common.py`](examples/noa/_common.py)에서 확인할 수 있습니다.
+각 예제의 `--help`로 필수 인자와 선택지를 확인할 수 있습니다.
+
+| 기능 | 예제 코드 | 주요 메서드 |
+| --- | --- | --- |
+| 상태 및 연결 확인 | [status.py](examples/noa/status.py) | `noa_health`, `noa_status`, `vox_status` |
+| Markdown 입력 및 RichText 전송 | [richtext.py](examples/noa/richtext.py) | `reply_markdown` |
+| 로컬 파일 및 Android 경로 전송 | [files.py](examples/noa/files.py) | `reply_file` |
+| custom 메시지 및 attachment | [custom_message.py](examples/noa/custom_message.py) | `custom_reply` |
+| 반복 멘션 및 UTF-16 위치 자동 계산 | [mentions.py](examples/noa/mentions.py) | `custom_text`, `Mention` |
+| 현재 참여자 및 퇴장 사용자 강퇴 | [kick.py](examples/noa/kick.py) | `kick_member` |
+| 강퇴 제한 해제 | [unban.py](examples/noa/unban.py) | `unban_member` |
+| 기본·이모티콘·미니 이모티콘 리액션 | [reactions.py](examples/noa/reactions.py) | `react_message` |
+| 오픈채팅 메시지 가리기 | [hide_message.py](examples/noa/hide_message.py) | `hide_message` |
+| 오픈프로필 목록 및 공유 URL | [profiles.py](examples/noa/profiles.py) | `get_open_chat_profiles`, `share_open_profile`, `share_member_open_profile` |
+| 프로필을 지정한 오픈채팅 입장 | [join_chat.py](examples/noa/join_chat.py) | `join_open_chat` |
+| 채팅방 나가기 | [leave_chat.py](examples/noa/leave_chat.py) | `leave_room` |
+| 직접 LOCO 발신 및 BSON int64 | [loco_send.py](examples/noa/loco_send.py) | `send_loco` |
+| LOCO 송수신 내역 조회 | [loco_history.py](examples/noa/loco_history.py) | `get_loco` |
+| 보이스톡 시작 및 종료 | [voice_talk.py](examples/noa/voice_talk.py) | `vox_start_voice_talk`, `vox_leave` |
+| 보이스룸 생성·입장·퇴장 | [voice_room.py](examples/noa/voice_room.py) | `vox_create_voice_room`, `vox_join_voice_room`, `vox_leave` |
+| 대상 음성 세션으로 PCM 스트리밍 | [pcm_stream.py](examples/noa/pcm_stream.py) | `vox_audio_stream` |
+| 단일 PCM 청크 송출 및 정리 | [pcm_chunk.py](examples/noa/pcm_chunk.py) | `vox_audio_start`, `vox_audio_push`, `vox_audio_stop` |
+| 응답 거부 및 네트워크 오류 처리 | [errors.py](examples/noa/errors.py) | `IrisError`, `requests` 예외 |
+| 메시지 이벤트와 ChatContext | [chatbot.py](examples/noa/chatbot.py) | `Bot`, `reply_markdown`, `react`, `custom_text` |
+
+강퇴·강퇴 해제·리액션·메시지 가리기는 KakaoTalk 후킹이 필요합니다.
+RichText 전송과 LOCO 발신에도 KakaoTalk 후킹이 필요하며, 음성 예제에는 VOX 후킹이 필요합니다.
+강퇴와 강퇴 해제는 오픈채팅 관리 권한이 필요하며, 같은 `kick_member` 호출로
+현재 참여자와 이미 나간 사용자를 처리합니다. 이모티콘 리액션에는 실제 항목 ID를 사용합니다.
+
+리액션의 `accepted`는 내부 성공 콜백 확인을 뜻하며 최종 DB 반영을 보장하지 않습니다.
+RichText·파일·custom 전송의 `Enqueued` 역시 접수 결과입니다. 직접 LOCO 발신의
+성공 응답은 소켓 쓰기 결과이며 서버 작업 성공과 구분합니다.
+
+`files.py`는 기본적으로 로컬 파일을 Base64 Data URI로 보내거나 Android 절대 경로를
+전달하므로 Noa 파일 후킹이 필요합니다. `--media-object`를 지정하면 파일명과 MIME을
+담은 Iris v0.33 미디어 객체로 전송합니다. `status.py --vox`로 음성 기능 상태도 조회할 수 있습니다.
+
+PCM 예제는 이미 연결된 음성 세션에서 사용합니다. 입력은 WAV 헤더가 없는
+48 kHz mono s16le 형식이며, 긴 파일은 서버가 속도를 조절하고 종료를 처리하는
+`pcm_stream.py`를 사용합니다. `pcm_chunk.py`는 현재 활성 세션을 대상으로 합니다.
+`chatbot.py`는 지정한 방의 `!서식`, `!리액션`, `!멘션` 명령을 처리합니다.
+
 ## Noa 확장 API
 
 `Bot.api` 또는 직접 생성한 `IrisAPI`에서 다음 메서드를 사용할 수 있습니다.
